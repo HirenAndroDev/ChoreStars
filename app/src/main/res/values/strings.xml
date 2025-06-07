@@ -1,0 +1,119 @@
+<resources>
+    <string name="app_name">ChoreStars</string>
+
+    <!-- Login -->
+    <string name="small_tasks_big_habits">Small Tasks\nBig Habits</string>
+    <string name="im_parent">I\'m Parent</string>
+    <string name="im_kid">I\'m Kid</string>
+    <string name="focus_on_each_family_member">Focus on Each\nFamily Member</string>
+    <string name="continue_with_google">Continue with Google</string>
+    <string name="join_family_via_code">Join Family via Code</string>
+    <string name="or">OR</string>
+
+    <!-- Onboarding -->
+    <string name="step_1_of_3">STEP 1 OF 3</string>
+    <string name="step_2_of_3">STEP 2 OF 3</string>
+    <string name="step_3_of_3">STEP 3 OF 3</string>
+    <string name="get_notified_about_your_kids_activity">Get notified about your\nkid\'s activity</string>
+    <string name="enable_notifications_desc">Enable notifications to track progress, rewards,\nand important updates in real time.</string>
+    <string name="enter_kid_name">Enter Kid Name</string>
+    <string name="add_your_first_kid">Add your first kid. You can add more in the profile\nsettings later.</string>
+    <string name="kid_name">Kid Name</string>
+    <string name="choose_kids_profile_image">Choose Kids Profile\nImage</string>
+    <string name="select_avatar_or_upload">Select an avatar or upload a photo to personalize\nyour kid profile.</string>
+    <string name="camera">Camera</string>
+    <string name="gallery">Gallery</string>
+    <string name="next">Next</string>
+    <string name="done">Done</string>
+
+    <!-- Tasks -->
+    <string name="welcome">Welcome</string>
+    <string name="lets_get_started_by_adding">Let\'s get started by adding the first task.</string>
+    <string name="new_task">New Task</string>
+    <string name="task_name">Task Name</string>
+    <string name="notes">Notes</string>
+    <string name="stars_per_completion">STARS PER COMPLETION</string>
+    <string name="start_date">Start Date</string>
+    <string name="repeat">Repeat</string>
+    <string name="time">Time</string>
+    <string name="photo_proof">Photo Proof</string>
+    <string name="set_time_reminder">Set a time to remind the kid when it\'s due</string>
+    <string name="use_preset">Use Preset</string>
+    <string name="add">Add</string>
+    <string name="today">Today</string>
+    <string name="every_day">Every Day</string>
+    <string name="once">Once</string>
+
+    <!-- Preset Tasks -->
+    <string name="brush_teeth">Brush teeth</string>
+    <string name="make_the_bed">Make the bed</string>
+    <string name="tidy_up_your_room">Tidy up your room</string>
+    <string name="read_a_book">Read a book</string>
+    <string name="wash_up">Wash up</string>
+    <string name="fold_clothes">Fold clothes</string>
+    <string name="store_shoes_properly">Store shoes properly</string>
+    <string name="clear_the_table">Clear the table</string>
+    <string name="take_shower">Take shower</string>
+    <string name="choose_preset_task">Choose Preset Task</string>
+
+    <!-- Rewards -->
+    <string name="rewards">Rewards</string>
+    <string name="motivate_your_child_with_exciting_rewards">Motivate Your Child with\nExciting Rewards!</string>
+    <string name="add_reward">Add Reward</string>
+    <string name="new_reward">New Reward</string>
+    <string name="add_custom_reward">Add Custom Reward</string>
+    <string name="buy_a_toy">Buy a toy</string>
+    <string name="ice_cream">Ice cream</string>
+    <string name="day_off_chores">Day-off chores</string>
+    <string name="money">Money</string>
+    <string name="pizza">Pizza</string>
+    <string name="play_games">Play games</string>
+    <string name="watch_a_movie">Watch a movie</string>
+    <string name="buy_a_book">Buy a book</string>
+    <string name="buy_clothes">Buy clothes</string>
+    <string name="extra_screen_time">Extra screen time</string>
+    <string name="reward_details">Reward Details</string>
+    <string name="kids">KIDS</string>
+    <string name="stars_needed_to_claim_reward">STARS NEEDED TO CLAIM REWARD</string>
+    <string name="renewal_period">Renewal Period</string>
+    <string name="non_renewable_reward">Non-renewable reward.</string>
+    <string name="none">None</string>
+
+    <!-- Family -->
+    <string name="family">Family</string>
+    <string name="adults">ADULTS</string>
+    <string name="owner">Owner</string>
+    <string name="kid_profile">Kid Profile</string>
+    <string name="text_to_speech">Text-to-Speech</string>
+    <string name="invite_code">Invite Code</string>
+    <string name="delete_kid_profile">Delete Kid Profile</string>
+    <string name="download_app_on_kid_device">Download the app on the kid device.</string>
+    <string name="open_and_select_im_kid">Open and select \"I\'m Kid\"</string>
+    <string name="enter_invite_code_below">Enter the invite code below.</string>
+    <string name="code_valid_for_one_family_member">This code is valid for one family member and\nwill expire in 24 hours.</string>
+    <string name="regenerate_invite_code">Regenerate Invite Code</string>
+    <string name="share_invite_link">Share Invite Link</string>
+
+    <!-- Navigation -->
+    <string name="tasks">Tasks</string>
+    <string name="settings">Settings</string>
+
+    <!-- Kid Interface -->
+    <string name="my_tasks">My Tasks</string>
+    <string name="my_rewards">My Rewards</string>
+    <string name="task_completed">Task Completed!</string>
+    <string name="earn_stars">Earn Stars</string>
+    <string name="claim_reward">Claim Reward</string>
+
+    <!-- Common -->
+    <string name="cancel">Cancel</string>
+    <string name="save">Save</string>
+    <string name="delete">Delete</string>
+    <string name="edit">Edit</string>
+    <string name="close">Close</string>
+    <string name="error">Error</string>
+    <string name="success">Success</string>
+    <string name="loading">Loading...</string>
+    <!-- TODO: Remove or change this placeholder text -->
+    <string name="hello_blank_fragment">Hello blank fragment</string>
+</resources>
