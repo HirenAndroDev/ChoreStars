@@ -31,8 +31,12 @@ public class AuthManager {
         this.context = context;
         auth = FirebaseAuth.getInstance();
 
+        // TODO: Replace with your actual Web Client ID from Firebase Console
+        // Go to Firebase Console -> Project Settings -> General -> Web API Key
+        String webClientId = "221575821171-YOUR_WEB_CLIENT_ID.apps.googleusercontent.com";
+
         GoogleSignInOptions gso = new GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
-                .requestIdToken("YOUR_WEB_CLIENT_ID") // Replace with your web client ID from Firebase
+                .requestIdToken(webClientId)
                 .requestEmail()
                 .build();
 
