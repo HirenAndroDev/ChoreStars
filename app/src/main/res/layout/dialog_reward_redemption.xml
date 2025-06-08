@@ -6,37 +6,55 @@
     android:padding="24dp"
     android:background="@drawable/bg_dialog">
 
-    <TextView
-        android:id="@+id/tv_title"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="@string/enter_invite_code"
-        android:textSize="20sp"
-        android:textStyle="bold"
-        android:textColor="@color/text_primary"
+    <ImageView
+        android:id="@+id/iv_reward_icon"
+        android:layout_width="64dp"
+        android:layout_height="64dp"
+        android:src="@drawable/ic_reward_default"
+        android:background="@drawable/bg_circle_orange"
+        android:padding="16dp"
         android:layout_gravity="center"
         android:layout_marginBottom="16dp" />
 
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Enter the 6-digit code to join the family"
+        android:text="Redeem Reward"
+        android:textSize="20sp"
+        android:textStyle="bold"
+        android:textColor="@color/text_primary"
+        android:layout_gravity="center"
+        android:layout_marginBottom="8dp" />
+
+    <TextView
+        android:id="@+id/tv_reward_name"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Ice cream"
+        android:textSize="16sp"
+        android:textColor="@color/text_secondary"
+        android:layout_gravity="center"
+        android:layout_marginBottom="16dp" />
+
+    <TextView
+        android:id="@+id/tv_star_cost"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Cost: 1 ⭐"
+        android:textSize="16sp"
+        android:textStyle="bold"
+        android:textColor="@color/orange_primary"
+        android:layout_gravity="center"
+        android:layout_marginBottom="8dp" />
+
+    <TextView
+        android:id="@+id/tv_remaining_stars"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Remaining stars: 1 ⭐"
         android:textSize="14sp"
         android:textColor="@color/text_secondary"
         android:layout_gravity="center"
-        android:layout_marginBottom="24dp" />
-
-    <EditText
-        android:id="@+id/et_invite_code"
-        android:layout_width="match_parent"
-        android:layout_height="56dp"
-        android:background="@drawable/bg_edittext"
-        android:hint="000000"
-        android:textSize="18sp"
-        android:textStyle="bold"
-        android:gravity="center"
-        android:inputType="number"
-        android:maxLength="6"
         android:layout_marginBottom="24dp" />
 
     <LinearLayout
@@ -56,14 +74,13 @@
             android:layout_marginEnd="8dp" />
 
         <Button
-            android:id="@+id/btn_join"
+            android:id="@+id/btn_redeem"
             android:layout_width="wrap_content"
             android:layout_height="40dp"
-            android:text="@string/join"
+            android:text="@string/redeem"
             android:textSize="14sp"
             android:textAllCaps="false"
-            style="@style/ButtonStyle.Primary"
-            android:enabled="false" />
+            style="@style/ButtonStyle.Secondary" />
 
     </LinearLayout>
 

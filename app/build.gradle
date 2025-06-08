@@ -83,11 +83,6 @@ dependencies {
     implementation 'com.google.firebase:firebase-firestore'
     implementation 'com.google.android.gms:play-services-auth:21.3.0'
 
-
-    // Image loading and processing
-    implementation 'com.github.bumptech.glide:glide:4.16.0'
-    annotationProcessor 'com.github.bumptech.glide:compiler:4.15.1'
-
     // Circle ImageView
     implementation 'de.hdodenhof:circleimageview:3.1.0'
 
@@ -121,7 +116,14 @@ dependencies {
     // Animation
     implementation 'com.airbnb.android:lottie:6.6.2'
 
+    // Google Sign-In
+    implementation 'com.google.android.gms:play-services-auth:20.7.0'
+// Image Loading
+    implementation 'com.github.bumptech.glide:glide:4.16.0'
+    annotationProcessor 'com.github.bumptech.glide:compiler:4.16.0'
 
+    // Circular ImageView
+    implementation 'de.hdodenhof:circleimageview:3.1.0'
 
 
 }

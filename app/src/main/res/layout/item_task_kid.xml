@@ -17,11 +17,11 @@
         android:gravity="center_vertical">
 
         <ImageView
-            android:id="@+id/iv_reward_icon"
+            android:id="@+id/iv_task_icon"
             android:layout_width="48dp"
             android:layout_height="48dp"
-            android:src="@drawable/ic_ice_cream"
-            android:background="@drawable/bg_circle_orange"
+            android:src="@drawable/ic_brush_teeth"
+            android:background="@drawable/bg_circle_blue"
             android:padding="12dp"
             android:layout_marginEnd="16dp" />
 
@@ -32,29 +32,30 @@
             android:orientation="vertical">
 
             <TextView
-                android:id="@+id/tv_reward_name"
+                android:id="@+id/tv_task_name"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="@string/ice_cream"
+                android:text="@string/brush_teeth"
                 android:textSize="16sp"
                 android:textStyle="bold"
                 android:textColor="@color/text_primary"
                 android:layout_marginBottom="4dp" />
 
             <TextView
-                android:id="@+id/tv_reward_description"
+                android:id="@+id/tv_task_description"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Delicious ice cream treat"
+                android:text="Clean your teeth for 2 minutes"
                 android:textSize="14sp"
                 android:textColor="@color/text_secondary"
-                android:layout_marginBottom="4dp" />
+                android:visibility="gone" />
 
             <LinearLayout
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"
-                android:gravity="center_vertical">
+                android:gravity="center_vertical"
+                android:layout_marginTop="4dp">
 
                 <ImageView
                     android:layout_width="16dp"
@@ -63,7 +64,7 @@
                     android:layout_marginEnd="4dp" />
 
                 <TextView
-                    android:id="@+id/tv_star_cost"
+                    android:id="@+id/tv_star_reward"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="1"
@@ -76,13 +77,13 @@
         </LinearLayout>
 
         <Button
-            android:id="@+id/btn_redeem"
+            android:id="@+id/btn_complete"
             android:layout_width="wrap_content"
             android:layout_height="40dp"
-            android:text="@string/redeem"
+            android:text="Complete"
             android:textSize="14sp"
             android:textAllCaps="false"
-            style="@style/ButtonStyle.Secondary"
+            style="@style/ButtonStyle.Primary"
             android:minWidth="80dp"
             android:paddingHorizontal="16dp" />
 
@@ -96,6 +97,14 @@
             style="@style/ButtonStyle.Outline"
             android:minWidth="70dp"
             android:paddingHorizontal="16dp"
+            android:visibility="gone" />
+
+        <View
+            android:id="@+id/completion_indicator"
+            android:layout_width="4dp"
+            android:layout_height="match_parent"
+            android:background="@color/success_green"
+            android:layout_marginStart="8dp"
             android:visibility="gone" />
 
     </LinearLayout>
