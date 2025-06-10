@@ -1,34 +1,28 @@
 package com.chores.app.kids.chores_app_for_kids.models;
 
-import com.google.firebase.firestore.PropertyName;
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
+import java.util.ArrayList;
 
 public class Family {
     private String familyId;
     private String ownerId;
-    private String familyName;
+    private List<String> parentIds;
+    private List<String> childIds;
     private String inviteCode;
-    private List<String> members;
-    private List<String> kids;
-    private long createdAt;
-    private long updatedAt;
+    private long inviteCodeExpiry;
 
     public Family() {
-        this.members = new ArrayList<>();
-        this.kids = new ArrayList<>();
+        // Empty constructor required for Firestore
+        this.parentIds = new ArrayList<>();
+        this.childIds = new ArrayList<>();
     }
 
-    public Family(String familyId, String ownerId, String familyName) {
+    public Family(String familyId, String ownerId) {
         this.familyId = familyId;
         this.ownerId = ownerId;
-        this.familyName = familyName;
-        this.members = new ArrayList<>();
-        this.kids = new ArrayList<>();
-        this.createdAt = System.currentTimeMillis();
-        this.updatedAt = System.currentTimeMillis();
+        this.parentIds = new ArrayList<>();
+        this.childIds = new ArrayList<>();
+        this.parentIds.add(ownerId);
     }
 
     // Getters and Setters
@@ -38,39 +32,15 @@ public class Family {
     public String getOwnerId() { return ownerId; }
     public void setOwnerId(String ownerId) { this.ownerId = ownerId; }
 
-    public String getFamilyName() { return familyName; }
-    public void setFamilyName(String familyName) { this.familyName = familyName; }
+    public List<String> getParentIds() { return parentIds; }
+    public void setParentIds(List<String> parentIds) { this.parentIds = parentIds; }
+
+    public List<String> getChildIds() { return childIds; }
+    public void setChildIds(List<String> childIds) { this.childIds = childIds; }
 
     public String getInviteCode() { return inviteCode; }
     public void setInviteCode(String inviteCode) { this.inviteCode = inviteCode; }
 
-    public List<String> getMembers() { return members; }
-    public void setMembers(List<String> members) { this.members = members; }
-
-    public List<String> getKids() { return kids; }
-    public void setKids(List<String> kids) { this.kids = kids; }
-
-    @PropertyName("createdAt")
-    public long getCreatedAt() { return createdAt; }
-    @PropertyName("createdAt")
-    public void setCreatedAt(long createdAt) { this.createdAt = createdAt; }
-
-    @PropertyName("updatedAt")
-    public long getUpdatedAt() { return updatedAt; }
-    @PropertyName("updatedAt")
-    public void setUpdatedAt(long updatedAt) { this.updatedAt = updatedAt; }
-
-    public Map<String, Object> toMap() {
-        Map<String, Object> result = new HashMap<>();
-        result.put("familyId", familyId);
-        result.put("ownerId", ownerId);
-        result.put("familyName", familyName);
-        result.put("inviteCode", inviteCode);
-        result.put("members", members);
-        result.put("kids", kids);
-        result.put("createdAt", createdAt);
-        result.put("updatedAt", updatedAt);
-        return result;
-    }
+    public long getInviteCodeExpiry() { return inviteCodeExpiry; }
+    public void setInviteCodeExpiry(long inviteCodeExpiry) { this.inviteCodeExpiry = inviteCodeExpiry; }
 }
-

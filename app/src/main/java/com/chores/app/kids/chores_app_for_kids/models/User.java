@@ -1,41 +1,40 @@
 package com.chores.app.kids.chores_app_for_kids.models;
 
-import com.google.firebase.firestore.PropertyName;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.List;
 
 public class User {
     private String userId;
-    private String email;
     private String name;
-    private String role; // "parent" or "kid"
+    private String email;
+    private String role;
     private String familyId;
-    private String profileImage;
-    private long createdAt;
-    private long lastLoginAt;
+    private String profileImageUrl;
+    private boolean textToSpeechEnabled;
+    private int starBalance;
 
     public User() {
-        // Default constructor required for calls to DataSnapshot.getValue(User.class)
+        // Empty constructor required for Firestore
     }
 
-    public User(String userId, String email, String name, String role) {
+    public User(String userId, String name, String email, String role, String familyId) {
         this.userId = userId;
-        this.email = email;
         this.name = name;
+        this.email = email;
         this.role = role;
-        this.createdAt = System.currentTimeMillis();
-        this.lastLoginAt = System.currentTimeMillis();
+        this.familyId = familyId;
+        this.starBalance = 0;
+        this.textToSpeechEnabled = false;
     }
 
     // Getters and Setters
     public String getUserId() { return userId; }
     public void setUserId(String userId) { this.userId = userId; }
 
-    public String getEmail() { return email; }
-    public void setEmail(String email) { this.email = email; }
-
     public String getName() { return name; }
     public void setName(String name) { this.name = name; }
+
+    public String getEmail() { return email; }
+    public void setEmail(String email) { this.email = email; }
 
     public String getRole() { return role; }
     public void setRole(String role) { this.role = role; }
@@ -43,29 +42,13 @@ public class User {
     public String getFamilyId() { return familyId; }
     public void setFamilyId(String familyId) { this.familyId = familyId; }
 
-    public String getProfileImage() { return profileImage; }
-    public void setProfileImage(String profileImage) { this.profileImage = profileImage; }
+    public String getProfileImageUrl() { return profileImageUrl; }
+    public void setProfileImageUrl(String profileImageUrl) { this.profileImageUrl = profileImageUrl; }
 
-    @PropertyName("createdAt")
-    public long getCreatedAt() { return createdAt; }
-    @PropertyName("createdAt")
-    public void setCreatedAt(long createdAt) { this.createdAt = createdAt; }
+    public boolean isTextToSpeechEnabled() { return textToSpeechEnabled; }
+    public void setTextToSpeechEnabled(boolean textToSpeechEnabled) { this.textToSpeechEnabled = textToSpeechEnabled; }
 
-    @PropertyName("lastLoginAt")
-    public long getLastLoginAt() { return lastLoginAt; }
-    @PropertyName("lastLoginAt")
-    public void setLastLoginAt(long lastLoginAt) { this.lastLoginAt = lastLoginAt; }
-
-    public Map<String, Object> toMap() {
-        Map<String, Object> result = new HashMap<>();
-        result.put("userId", userId);
-        result.put("email", email);
-        result.put("name", name);
-        result.put("role", role);
-        result.put("familyId", familyId);
-        result.put("profileImage", profileImage);
-        result.put("createdAt", createdAt);
-        result.put("lastLoginAt", lastLoginAt);
-        return result;
-    }
+    public int getStarBalance() { return starBalance; }
+    public void setStarBalance(int starBalance) { this.starBalance = starBalance; }
 }
+

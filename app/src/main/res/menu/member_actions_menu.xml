@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <item
+        android:id="@+id/action_view_details"
+        android:title="View Details"
+        android:icon="@drawable/ic_person" />
+
+    <item
+        android:id="@+id/action_view_stats"
+        android:title="View Stats"
+        android:icon="@drawable/ic_stats" />
+
+    <item
+        android:id="@+id/action_edit_member"
+        android:title="Edit Member"
+        android:icon="@drawable/ic_edit" />
+
+    <item
+        android:id="@+id/action_manage_permissions"
+        android:title="Manage Permissions"
+        android:icon="@drawable/ic_security" />
+
+    <item
+        android:id="@+id/action_remove_member"
+        android:title="Remove from Family"
+        android:icon="@drawable/ic_remove_person"
+        android:iconTint="@color/warning_red" />
+</menu>

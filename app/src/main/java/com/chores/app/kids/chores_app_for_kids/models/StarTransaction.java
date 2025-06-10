@@ -1,43 +1,35 @@
 package com.chores.app.kids.chores_app_for_kids.models;
 
-import com.google.firebase.firestore.PropertyName;
-import java.util.HashMap;
-import java.util.Map;
-
 public class StarTransaction {
     private String transactionId;
-    private String kidId;
-    private String familyId;
+    private String userId;
     private String type; // "earned", "spent", "adjustment"
     private int amount;
-    private String reason;
-    private String relatedId; // taskId or rewardId
-    private String createdBy;
-    private long createdAt;
+    private String description;
+    private long timestamp;
+    private String relatedTaskId;
+    private String relatedRewardId;
+    private String familyId;
 
     public StarTransaction() {
-        // Default constructor required for Firestore
+        // Empty constructor required for Firestore
     }
 
-    public StarTransaction(String transactionId, String kidId, String familyId, String type, int amount, String reason) {
-        this.transactionId = transactionId;
-        this.kidId = kidId;
-        this.familyId = familyId;
+    public StarTransaction(String userId, String type, int amount, String description, String familyId) {
+        this.userId = userId;
         this.type = type;
         this.amount = amount;
-        this.reason = reason;
-        this.createdAt = System.currentTimeMillis();
+        this.description = description;
+        this.familyId = familyId;
+        this.timestamp = System.currentTimeMillis();
     }
 
     // Getters and Setters
     public String getTransactionId() { return transactionId; }
     public void setTransactionId(String transactionId) { this.transactionId = transactionId; }
 
-    public String getKidId() { return kidId; }
-    public void setKidId(String kidId) { this.kidId = kidId; }
-
-    public String getFamilyId() { return familyId; }
-    public void setFamilyId(String familyId) { this.familyId = familyId; }
+    public String getUserId() { return userId; }
+    public void setUserId(String userId) { this.userId = userId; }
 
     public String getType() { return type; }
     public void setType(String type) { this.type = type; }
@@ -45,31 +37,18 @@ public class StarTransaction {
     public int getAmount() { return amount; }
     public void setAmount(int amount) { this.amount = amount; }
 
-    public String getReason() { return reason; }
-    public void setReason(String reason) { this.reason = reason; }
+    public String getDescription() { return description; }
+    public void setDescription(String description) { this.description = description; }
 
-    public String getRelatedId() { return relatedId; }
-    public void setRelatedId(String relatedId) { this.relatedId = relatedId; }
+    public long getTimestamp() { return timestamp; }
+    public void setTimestamp(long timestamp) { this.timestamp = timestamp; }
 
-    public String getCreatedBy() { return createdBy; }
-    public void setCreatedBy(String createdBy) { this.createdBy = createdBy; }
+    public String getRelatedTaskId() { return relatedTaskId; }
+    public void setRelatedTaskId(String relatedTaskId) { this.relatedTaskId = relatedTaskId; }
 
-    @PropertyName("createdAt")
-    public long getCreatedAt() { return createdAt; }
-    @PropertyName("createdAt")
-    public void setCreatedAt(long createdAt) { this.createdAt = createdAt; }
+    public String getRelatedRewardId() { return relatedRewardId; }
+    public void setRelatedRewardId(String relatedRewardId) { this.relatedRewardId = relatedRewardId; }
 
-    public Map<String, Object> toMap() {
-        Map<String, Object> result = new HashMap<>();
-        result.put("transactionId", transactionId);
-        result.put("kidId", kidId);
-        result.put("familyId", familyId);
-        result.put("type", type);
-        result.put("amount", amount);
-        result.put("reason", reason);
-        result.put("relatedId", relatedId);
-        result.put("createdBy", createdBy);
-        result.put("createdAt", createdAt);
-        return result;
-    }
+    public String getFamilyId() { return familyId; }
+    public void setFamilyId(String familyId) { this.familyId = familyId; }
 }

@@ -1,111 +1,206 @@
 package com.chores.app.kids.chores_app_for_kids.adapters;
 
+
+import android.content.Context;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.CheckBox;
 import android.widget.ImageView;
 import android.widget.TextView;
-
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
-
-import com.bumptech.glide.Glide;
 import com.chores.app.kids.chores_app_for_kids.R;
-import com.chores.app.kids.chores_app_for_kids.models.Kid;
-
+import com.chores.app.kids.chores_app_for_kids.models.User;
+import java.util.ArrayList;
 import java.util.List;
 
-import de.hdodenhof.circleimageview.CircleImageView;
+public class KidSelectionAdapter extends RecyclerView.Adapter<KidSelectionAdapter.KidSelectionViewHolder> {
 
-public class KidSelectionAdapter extends RecyclerView.Adapter<KidSelectionAdapter.KidViewHolder> {
-    private List<Kid> kids;
+    private List<User> kidList;
     private List<String> selectedKidIds;
-    private OnKidSelectionListener listener;
+    private Context context;
+    private OnKidSelectionChangedListener listener;
 
-    public interface OnKidSelectionListener {
-        void onKidSelectionChanged(String kidId, boolean isSelected);
+    public interface OnKidSelectionChangedListener {
+        void onKidSelectionChanged(List<String> selectedKidIds);
     }
 
-    public KidSelectionAdapter(List<Kid> kids, List<String> selectedKidIds, OnKidSelectionListener listener) {
-        this.kids = kids;
-        this.selectedKidIds = selectedKidIds;
+    public KidSelectionAdapter(List<User> kidList, Context context, OnKidSelectionChangedListener listener) {
+        this.kidList = kidList != null ? kidList : new ArrayList<>();
+        this.context = context;
         this.listener = listener;
+        this.selectedKidIds = new ArrayList<>();
     }
 
     @NonNull
     @Override
-    public KidViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
-        View view = LayoutInflater.from(parent.getContext())
-                .inflate(R.layout.item_kid_selection, parent, false);
-        return new KidViewHolder(view);
+    public KidSelectionViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+        View view = LayoutInflater.from(context).inflate(R.layout.item_kid_selection, parent, false);
+        return new KidSelectionViewHolder(view);
     }
 
     @Override
-    public void onBindViewHolder(@NonNull KidViewHolder holder, int position) {
-        Kid kid = kids.get(position);
-        holder.bind(kid);
+    public void onBindViewHolder(@NonNull KidSelectionViewHolder holder, int position) {
+        User kid = kidList.get(position);
+
+        // Set kid name
+        holder.tvKidName.setText(kid.getName());
+
+        // Set star balance info
+        if (kid.getStarBalance() > 0) {
+            holder.tvKidStarBalance.setText(String.format("%d stars earned", kid.getStarBalance()));
+            holder.tvKidStarBalance.setVisibility(View.VISIBLE);
+        } else {
+            holder.tvKidStarBalance.setVisibility(View.GONE);
+        }
+
+        // Set avatar - you can customize this based on kid's profile image or use default
+        if (kid.getProfileImageUrl() != null && !kid.getProfileImageUrl().isEmpty()) {
+            // Load profile image using Glide or similar
+            // Glide.with(context).load(kid.getProfileImageUrl()).into(holder.ivKidAvatar);
+            holder.ivKidAvatar.setImageResource(R.drawable.ic_child);
+        } else {
+            // Use default avatar with different colors for variety
+            holder.ivKidAvatar.setImageResource(R.drawable.ic_child);
+            int[] avatarColors = {
+                    R.color.success_green,
+                    R.color.accent_blue,
+                    R.color.accent_purple,
+                    R.color.accent_orange,
+                    R.color.primary_green
+            };
+            int colorIndex = position % avatarColors.length;
+            holder.ivKidAvatar.setBackgroundTintList(
+                    android.content.res.ColorStateList.valueOf(context.getResources().getColor(avatarColors[colorIndex]))
+            );
+        }
+
+        // Set checkbox state
+        boolean isSelected = selectedKidIds.contains(kid.getUserId());
+        holder.cbKidSelected.setChecked(isSelected);
+
+        // Handle checkbox changes
+        holder.cbKidSelected.setOnCheckedChangeListener(null); // Clear previous listener
+        holder.cbKidSelected.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            if (isChecked) {
+                if (!selectedKidIds.contains(kid.getUserId())) {
+                    selectedKidIds.add(kid.getUserId());
+                }
+            } else {
+                selectedKidIds.remove(kid.getUserId());
+            }
+
+            // Notify listener of selection change
+            if (listener != null) {
+                listener.onKidSelectionChanged(new ArrayList<>(selectedKidIds));
+            }
+
+            // Update visual feedback
+            updateSelectionVisualFeedback(holder, isChecked);
+        });
+
+        // Handle item click to toggle selection
+        holder.itemView.setOnClickListener(v -> {
+            holder.cbKidSelected.setChecked(!holder.cbKidSelected.isChecked());
+        });
+
+        // Set initial visual feedback
+        updateSelectionVisualFeedback(holder, isSelected);
+    }
+
+    private void updateSelectionVisualFeedback(KidSelectionViewHolder holder, boolean isSelected) {
+        if (isSelected) {
+            holder.itemView.setAlpha(1.0f);
+            holder.itemView.setBackgroundColor(context.getResources().getColor(R.color.light_yellow));
+        } else {
+            holder.itemView.setAlpha(0.7f);
+            holder.itemView.setBackgroundColor(android.graphics.Color.TRANSPARENT);
+        }
     }
 
     @Override
     public int getItemCount() {
-        return kids.size();
+        return kidList.size();
     }
 
-    public void updateSelectedKids(List<String> newSelectedKidIds) {
-        selectedKidIds.clear();
-        selectedKidIds.addAll(newSelectedKidIds);
+    // Public methods for external control
+
+    public void setSelectedKids(List<String> selectedIds) {
+        this.selectedKidIds.clear();
+        if (selectedIds != null) {
+            this.selectedKidIds.addAll(selectedIds);
+        }
         notifyDataSetChanged();
     }
 
-    class KidViewHolder extends RecyclerView.ViewHolder {
-        private CircleImageView ivKidAvatar;
-        private TextView tvKidName;
-        private TextView tvStarBalance;
-        private CheckBox checkBoxSelected;
+    public List<String> getSelectedKidIds() {
+        return new ArrayList<>(selectedKidIds);
+    }
 
-        public KidViewHolder(@NonNull View itemView) {
-            super(itemView);
-            ivKidAvatar = itemView.findViewById(R.id.iv_kid_avatar);
-            tvKidName = itemView.findViewById(R.id.tv_kid_name);
-            tvStarBalance = itemView.findViewById(R.id.tv_star_balance);
-            checkBoxSelected = itemView.findViewById(R.id.checkbox_selected);
+    public void selectAll() {
+        selectedKidIds.clear();
+        for (User kid : kidList) {
+            selectedKidIds.add(kid.getUserId());
+        }
+        notifyDataSetChanged();
 
-            itemView.setOnClickListener(v -> {
-                checkBoxSelected.toggle();
-            });
+        if (listener != null) {
+            listener.onKidSelectionChanged(new ArrayList<>(selectedKidIds));
+        }
+    }
 
-            checkBoxSelected.setOnCheckedChangeListener((buttonView, isChecked) -> {
-                if (listener != null) {
-                    int position = getAdapterPosition();
-                    if (position != RecyclerView.NO_POSITION) {
-                        listener.onKidSelectionChanged(kids.get(position).getKidId(), isChecked);
-                    }
-                }
-            });
+    public void clearSelection() {
+        selectedKidIds.clear();
+        notifyDataSetChanged();
+
+        if (listener != null) {
+            listener.onKidSelectionChanged(new ArrayList<>(selectedKidIds));
+        }
+    }
+
+    public boolean hasSelection() {
+        return !selectedKidIds.isEmpty();
+    }
+
+    public int getSelectionCount() {
+        return selectedKidIds.size();
+    }
+
+    public void updateKidList(List<User> newKidList) {
+        this.kidList.clear();
+        if (newKidList != null) {
+            this.kidList.addAll(newKidList);
         }
 
-        public void bind(Kid kid) {
-            tvKidName.setText(kid.getName());
-            tvStarBalance.setText(kid.getStarBalance() + " ⭐");
-
-            boolean isSelected = selectedKidIds.contains(kid.getKidId());
-            checkBoxSelected.setOnCheckedChangeListener(null);
-            checkBoxSelected.setChecked(isSelected);
-            checkBoxSelected.setOnCheckedChangeListener((buttonView, isChecked) -> {
-                if (listener != null) {
-                    listener.onKidSelectionChanged(kid.getKidId(), isChecked);
-                }
-            });
-
-            if (kid.getProfileImage() != null && !kid.getProfileImage().isEmpty()) {
-                Glide.with(itemView.getContext())
-                        .load(kid.getProfileImage())
-                        .placeholder(R.drawable.ic_default_kid_avatar)
-                        .into(ivKidAvatar);
-            } else {
-                ivKidAvatar.setImageResource(R.drawable.ic_default_kid_avatar);
+        // Remove any selected IDs that are no longer in the list
+        List<String> validIds = new ArrayList<>();
+        for (User kid : this.kidList) {
+            if (selectedKidIds.contains(kid.getUserId())) {
+                validIds.add(kid.getUserId());
             }
+        }
+        this.selectedKidIds = validIds;
+
+        notifyDataSetChanged();
+
+        if (listener != null) {
+            listener.onKidSelectionChanged(new ArrayList<>(selectedKidIds));
+        }
+    }
+
+    static class KidSelectionViewHolder extends RecyclerView.ViewHolder {
+        CheckBox cbKidSelected;
+        ImageView ivKidAvatar;
+        TextView tvKidName;
+        TextView tvKidStarBalance;
+
+        public KidSelectionViewHolder(@NonNull View itemView) {
+            super(itemView);
+            cbKidSelected = itemView.findViewById(R.id.cb_kid_selected);
+            ivKidAvatar = itemView.findViewById(R.id.iv_kid_avatar);
+            tvKidName = itemView.findViewById(R.id.tv_kid_name);
+            tvKidStarBalance = itemView.findViewById(R.id.tv_kid_star_balance);
         }
     }
 }

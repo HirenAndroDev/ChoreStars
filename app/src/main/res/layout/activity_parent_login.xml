@@ -1,150 +1,156 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical"
-    android:background="@color/background_landing_parent"
-    android:padding="24dp">
-
-    <ImageView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:src="@drawable/ic_back"
-        android:padding="8dp"
-        android:background="?attr/selectableItemBackgroundBorderless"
-        android:clickable="true"
-        android:focusable="true"
-        android:layout_marginBottom="24dp" />
+    android:background="@drawable/gradient_background"
+    android:fillViewport="true">
 
     <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1"
+        android:layout_height="wrap_content"
         android:orientation="vertical"
+        android:padding="32dp"
         android:gravity="center">
 
+        <!-- Header -->
+        <ImageView
+            android:layout_width="80dp"
+            android:layout_height="80dp"
+            android:layout_marginBottom="24dp"
+            android:src="@drawable/ic_parent"
+            android:background="@drawable/circle_background"
+            android:backgroundTint="@color/primary_green"
+            android:padding="20dp"
+            app:tint="@android:color/white" />
+
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="@string/landing_title"
+            android:layout_marginBottom="8dp"
+            android:text="Welcome Back, Parent!"
+            android:textColor="@color/text_primary"
             android:textSize="28sp"
             android:textStyle="bold"
-            android:textColor="@color/text_primary"
-            android:gravity="center"
-            android:layout_marginBottom="32dp" />
-
-        <!-- Sample tasks preview -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:layout_marginBottom="48dp">
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:background="@drawable/bg_task_item"
-                android:padding="16dp"
-                android:layout_marginBottom="8dp"
-                android:gravity="center_vertical">
-
-                <ImageView
-                    android:layout_width="40dp"
-                    android:layout_height="40dp"
-                    android:src="@drawable/ic_toys"
-                    android:background="@drawable/bg_circle_orange"
-                    android:padding="8dp" />
-
-                <TextView
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:text="@string/put_away_toys"
-                    android:textSize="16sp"
-                    android:textColor="@color/text_primary"
-                    android:layout_marginStart="16dp" />
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="2 ⭐"
-                    android:textSize="16sp"
-                    android:textStyle="bold"
-                    android:textColor="@color/orange_primary" />
-
-            </LinearLayout>
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:background="@drawable/bg_task_completed"
-                android:padding="16dp"
-                android:gravity="center_vertical">
-
-                <ImageView
-                    android:layout_width="24dp"
-                    android:layout_height="24dp"
-                    android:src="@drawable/ic_check"
-                    android:layout_marginEnd="8dp" />
-
-                <ImageView
-                    android:layout_width="40dp"
-                    android:layout_height="40dp"
-                    android:src="@drawable/ic_laundry"
-                    android:background="@drawable/bg_circle_green"
-                    android:padding="8dp" />
-
-                <TextView
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:text="@string/do_laundry"
-                    android:textSize="16sp"
-                    android:textColor="@color/success_green"
-                    android:layout_marginStart="16dp" />
-
-            </LinearLayout>
-
-        </LinearLayout>
-
-        <Button
-            android:id="@+id/btn_continue_with_google"
-            android:layout_width="match_parent"
-            android:layout_height="@dimen/button_height_large"
-            android:text="@string/continue_with_google"
-            android:textSize="16sp"
-            android:textStyle="bold"
-            style="@style/ButtonStyle.Primary"
-            android:drawableStart="@drawable/ic_google"
-            android:drawablePadding="12dp"
-            android:layout_marginBottom="16dp" />
+            android:textAlignment="center" />
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="OR"
-            android:textSize="14sp"
+            android:layout_marginBottom="48dp"
+            android:text="Sign in to manage your family's tasks and rewards"
             android:textColor="@color/text_secondary"
-            android:layout_marginBottom="16dp" />
-
-        <Button
-            android:id="@+id/btn_join_family_code"
-            android:layout_width="match_parent"
-            android:layout_height="@dimen/button_height"
-            android:text="@string/join_family_via_code"
             android:textSize="16sp"
-            style="@style/ButtonStyle.Outline" />
+            android:textAlignment="center"
+            android:lineSpacingExtra="2dp" />
+
+        <!-- Sign In Card -->
+        <androidx.cardview.widget.CardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="24dp"
+            app:cardCornerRadius="20dp"
+            app:cardElevation="12dp"
+            app:cardBackgroundColor="@android:color/white">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="32dp">
+
+                <!-- Google Sign In Button -->
+                <Button
+                    android:id="@+id/btn_google_sign_in"
+                    android:layout_width="match_parent"
+                    android:layout_height="56dp"
+                    android:layout_marginBottom="20dp"
+                    android:text="Continue with Google"
+                    android:textSize="16sp"
+                    android:textStyle="bold"
+                    android:textColor="@color/text_primary"
+                    android:background="@drawable/button_rounded"
+                    android:backgroundTint="@android:color/white"
+                    android:elevation="2dp"
+                    android:drawableStart="@drawable/ic_google"
+                    android:drawablePadding="12dp"
+                    android:gravity="center"
+                    android:stateListAnimator="@null"
+                    style="?android:attr/borderlessButtonStyle" />
+
+                <!-- Divider -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginVertical="20dp"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical">
+
+                    <View
+                        android:layout_width="0dp"
+                        android:layout_height="1dp"
+                        android:layout_weight="1"
+                        android:background="@color/text_secondary"
+                        android:alpha="0.3" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginHorizontal="16dp"
+                        android:text="OR"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="14sp" />
+
+                    <View
+                        android:layout_width="0dp"
+                        android:layout_height="1dp"
+                        android:layout_weight="1"
+                        android:background="@color/text_secondary"
+                        android:alpha="0.3" />
+
+                </LinearLayout>
+
+                <!-- Join Family Button -->
+                <Button
+                    android:id="@+id/btn_join_family"
+                    android:layout_width="match_parent"
+                    android:layout_height="56dp"
+                    android:text="Join Existing Family"
+                    android:textSize="16sp"
+                    android:textColor="@color/primary_green"
+                    android:background="@drawable/button_outlined"
+                    android:drawableStart="@drawable/ic_family"
+                    android:drawablePadding="12dp"
+                    android:gravity="center"
+                    style="?android:attr/borderlessButtonStyle" />
+
+            </LinearLayout>
+
+        </androidx.cardview.widget.CardView>
+
+        <!-- Help Text -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="New to NeatKid? Sign in with Google to create your family account"
+            android:textColor="@color/text_secondary"
+            android:textSize="14sp"
+            android:textAlignment="center"
+            android:alpha="0.8" />
+
+        <!-- Terms -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:text="By continuing, you agree to our Terms of Service and Privacy Policy"
+            android:textColor="@color/text_secondary"
+            android:textSize="12sp"
+            android:textAlignment="center"
+            android:alpha="0.6"
+            android:lineSpacingExtra="2dp" />
 
     </LinearLayout>
 
-    <ProgressBar
-        android:id="@+id/progress_bar"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="center"
-        android:layout_marginTop="16dp"
-        android:visibility="gone" />
-
-</LinearLayout>
+</ScrollView>

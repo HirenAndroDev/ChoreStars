@@ -7,14 +7,12 @@
         android:required="false" />
 
     <uses-permission android:name="android.permission.INTERNET" />
-    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.CAMERA" />
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.VIBRATE" />
-    <uses-permission android:name="android.permission.WAKE_LOCK" />
 
     <application
+        android:name=".services.MyApplication"
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
@@ -24,122 +22,47 @@
         android:supportsRtl="true"
         android:theme="@style/AppTheme"
         tools:targetApi="31">
+        <activity
+            android:name=".activities.TestGoogleSignInActivity"
+            android:exported="true" >
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
 
-        <!-- Splash Activity -->
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+        <activity
+            android:name=".activities.CreateRewardActivity"
+            android:exported="false"
+            android:theme="@style/AppTheme.NoActionBar" />
+        <activity
+            android:name=".activities.CreateTaskActivity"
+            android:exported="false" />
+        <activity
+            android:name=".activities.KidDashboardActivity"
+            android:exported="false"
+            android:theme="@style/AppTheme.NoActionBar" />
+        <activity
+            android:name=".activities.ParentDashboardActivity"
+            android:exported="false"
+            android:theme="@style/AppTheme.NoActionBar" />
+        <activity
+            android:name=".activities.KidLoginActivity"
+            android:exported="false" />
+        <activity
+            android:name=".activities.ParentLoginActivity"
+            android:exported="false"
+            android:theme="@style/AppTheme.NoActionBar" />
+        <activity
+            android:name=".activities.MainActivity"
+            android:exported="true">
+
+        </activity>
         <activity
             android:name=".activities.SplashActivity"
             android:exported="true"
             android:screenOrientation="portrait"
-            android:theme="@style/Theme.ChoresApp.NoActionBar">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity>
-
-        <!-- Landing Activity -->
-        <activity
-            android:name=".activities.LandingActivity"
-            android:exported="false"
-            android:screenOrientation="portrait"
-            android:theme="@style/Theme.ChoresApp.NoActionBar" />
-
-        <!-- Parent Activities -->
-        <activity
-            android:name=".activities.parent.ParentLoginActivity"
-            android:exported="false"
-            android:screenOrientation="portrait"
-            android:theme="@style/Theme.ChoresApp.NoActionBar" />
-
-        <activity
-            android:name=".activities.parent.AccountSelectionActivity"
-            android:exported="false"
-            android:screenOrientation="portrait"
-            android:theme="@style/Theme.ChoresApp.NoActionBar" />
-
-        <activity
-            android:name=".activities.parent.ParentDashboardActivity"
-            android:exported="false"
-            android:screenOrientation="portrait" />
-
-        <activity
-            android:name=".activities.parent.FamilyManagementActivity"
-            android:exported="false"
-            android:screenOrientation="portrait" />
-
-        <activity
-            android:name=".activities.parent.TaskManagementActivity"
-            android:exported="false"
-            android:screenOrientation="portrait" />
-
-        <activity
-            android:name=".activities.parent.CreateTaskActivity"
-            android:exported="false"
-            android:screenOrientation="portrait" />
-
-        <activity
-            android:name=".activities.parent.RewardManagementActivity"
-            android:exported="false"
-            android:screenOrientation="portrait" />
-
-        <activity
-            android:name=".activities.parent.CreateRewardActivity"
-            android:exported="false"
-            android:screenOrientation="portrait" />
-
-        <!-- Kid Activities -->
-        <activity
-            android:name=".activities.kid.KidLoginActivity"
-            android:exported="false"
-            android:screenOrientation="portrait"
-            android:theme="@style/Theme.ChoresApp.NoActionBar" />
-
-        <activity
-            android:name=".activities.kid.KidProfileCreationActivity"
-            android:exported="false"
-            android:screenOrientation="portrait"
-            android:theme="@style/Theme.ChoresApp.NoActionBar" />
-
-        <activity
-            android:name=".activities.kid.KidDashboardActivity"
-            android:exported="false"
-            android:screenOrientation="portrait" />
-
-        <activity
-            android:name=".activities.kid.TaskCompletionActivity"
-            android:exported="false"
-            android:screenOrientation="portrait" />
-
-        <activity
-            android:name=".activities.kid.RewardRedemptionActivity"
-            android:exported="false"
-            android:screenOrientation="portrait" />
-
-        <activity
-            android:name=".activities.kid.StarBalanceActivity"
-            android:exported="false"
-            android:screenOrientation="portrait" />
-
-        <!-- Services -->
-        <service
-            android:name=".services.TaskReminderService"
-            android:enabled="true"
-            android:exported="false" />
-
-        <service
-            android:name=".services.NotificationService"
-            android:enabled="true"
-            android:exported="false" />
-
-        <!-- Firebase Messaging Service -->
-        <service
-            android:name=".services.MyFirebaseMessagingService"
-            android:exported="false">
-            <intent-filter>
-                <action android:name="com.google.firebase.MESSAGING_EVENT" />
-            </intent-filter>
-        </service>
-
+            android:theme="@style/AppTheme.Launcher"></activity>
     </application>
 
 </manifest>

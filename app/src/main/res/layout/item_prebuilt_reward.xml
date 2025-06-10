@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.cardview.widget.CardView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/card_view_prebuilt_reward"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_margin="4dp"
+    app:cardCornerRadius="12dp"
+    app:cardElevation="4dp"
+    app:cardBackgroundColor="@android:color/white">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp"
+        android:gravity="center">
+
+        <!-- Reward Icon -->
+        <ImageView
+            android:id="@+id/iv_prebuilt_icon"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_marginBottom="8dp"
+            android:background="@drawable/circle_background"
+            android:backgroundTint="@color/light_yellow"
+            android:padding="12dp"
+            android:src="@drawable/ic_ice_cream" />
+
+        <!-- Reward Name -->
+        <TextView
+            android:id="@+id/tv_prebuilt_name"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="4dp"
+            android:text="Ice Cream"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:textColor="@color/text_primary"
+            android:textAlignment="center"
+            android:maxLines="2"
+            android:ellipsize="end" />
+
+        <!-- Star Cost -->
+        <TextView
+            android:id="@+id/tv_prebuilt_cost"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="10 ⭐"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:textColor="@color/star_yellow" />
+
+        <!-- Selection Indicator -->
+        <View
+            android:id="@+id/view_selection_indicator"
+            android:layout_width="match_parent"
+            android:layout_height="3dp"
+            android:layout_marginTop="8dp"
+            android:background="@color/primary_green"
+            android:visibility="invisible" />
+
+    </LinearLayout>
+
+</androidx.cardview.widget.CardView>

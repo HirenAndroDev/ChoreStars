@@ -1,103 +1,119 @@
 <?xml version="1.0" encoding="utf-8"?>
-<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.cardview.widget.CardView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
-    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/card_view_reward"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_margin="8dp"
+    android:layout_margin="6dp"
     app:cardCornerRadius="16dp"
-    app:cardElevation="2dp"
-    app:strokeWidth="0dp">
+    app:cardElevation="6dp"
+    app:cardBackgroundColor="@android:color/white">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="horizontal"
+        android:orientation="vertical"
         android:padding="16dp"
-        android:gravity="center_vertical">
+        android:gravity="center">
 
+        <!-- Custom Badge -->
+        <TextView
+            android:id="@+id/tv_custom_badge"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="8dp"
+            android:text="CUSTOM"
+            android:textSize="10sp"
+            android:textStyle="bold"
+            android:textColor="@color/primary_green"
+            android:background="@drawable/badge_background"
+            android:paddingHorizontal="8dp"
+            android:paddingVertical="2dp"
+            android:visibility="gone" />
+
+        <!-- Reward Icon -->
         <ImageView
             android:id="@+id/iv_reward_icon"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:src="@drawable/ic_ice_cream"
-            android:background="@drawable/bg_circle_orange"
-            android:padding="12dp"
-            android:layout_marginEnd="16dp" />
+            android:layout_width="64dp"
+            android:layout_height="64dp"
+            android:layout_marginBottom="12dp"
+            android:background="@drawable/circle_background"
+            android:backgroundTint="@color/light_yellow"
+            android:padding="16dp"
+            android:src="@drawable/ic_ice_cream" />
 
-        <LinearLayout
-            android:layout_width="0dp"
+        <!-- Reward Name -->
+        <TextView
+            android:id="@+id/tv_reward_name"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:orientation="vertical">
+            android:layout_marginBottom="8dp"
+            android:text="Ice Cream"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:textColor="@color/text_primary"
+            android:textAlignment="center"
+            android:maxLines="2"
+            android:ellipsize="end" />
+
+        <!-- Star Cost -->
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="12dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <ImageView
+                android:layout_width="20dp"
+                android:layout_height="20dp"
+                android:layout_marginEnd="4dp"
+                android:src="@drawable/ic_star"
+                app:tint="@color/star_yellow" />
 
             <TextView
-                android:id="@+id/tv_reward_name"
+                android:id="@+id/tv_star_cost"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="@string/ice_cream"
+                android:text="10"
                 android:textSize="16sp"
                 android:textStyle="bold"
-                android:textColor="@color/text_primary"
-                android:layout_marginBottom="4dp" />
-
-            <TextView
-                android:id="@+id/tv_reward_description"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Delicious ice cream treat"
-                android:textSize="14sp"
-                android:textColor="@color/text_secondary"
-                android:layout_marginBottom="4dp" />
-
-            <LinearLayout
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:gravity="center_vertical">
-
-                <ImageView
-                    android:layout_width="16dp"
-                    android:layout_height="16dp"
-                    android:src="@drawable/ic_star_small"
-                    android:layout_marginEnd="4dp" />
-
-                <TextView
-                    android:id="@+id/tv_star_cost"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="1"
-                    android:textSize="14sp"
-                    android:textStyle="bold"
-                    android:textColor="@color/orange_primary" />
-
-            </LinearLayout>
+                android:textColor="@color/star_yellow" />
 
         </LinearLayout>
 
-        <Button
-            android:id="@+id/btn_redeem"
-            android:layout_width="wrap_content"
-            android:layout_height="40dp"
-            android:text="@string/redeem"
-            android:textSize="14sp"
-            android:textAllCaps="false"
-            style="@style/ButtonStyle.Secondary"
-            android:minWidth="80dp"
-            android:paddingHorizontal="16dp" />
+        <!-- Action Buttons -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
 
-        <Button
-            android:id="@+id/btn_edit"
-            android:layout_width="wrap_content"
-            android:layout_height="40dp"
-            android:text="Edit"
-            android:textSize="14sp"
-            android:textAllCaps="false"
-            style="@style/ButtonStyle.Outline"
-            android:minWidth="70dp"
-            android:paddingHorizontal="16dp"
-            android:visibility="gone" />
+            <Button
+                android:id="@+id/btn_edit"
+                android:layout_width="0dp"
+                android:layout_height="36dp"
+                android:layout_weight="1"
+                android:layout_marginEnd="4dp"
+                android:text="Edit"
+                android:textSize="12sp"
+                android:textColor="@color/primary_green"
+                android:background="@drawable/button_outlined_small"
+                style="?android:attr/borderlessButtonStyle" />
+
+            <Button
+                android:id="@+id/btn_delete"
+                android:layout_width="0dp"
+                android:layout_height="36dp"
+                android:layout_weight="1"
+                android:layout_marginStart="4dp"
+                android:text="Delete"
+                android:textSize="12sp"
+                android:textColor="@color/warning_red"
+                android:background="@drawable/button_outlined_small"
+                style="?android:attr/borderlessButtonStyle" />
+
+        </LinearLayout>
 
     </LinearLayout>
 
-</com.google.android.material.card.MaterialCardView>
+</androidx.cardview.widget.CardView>
