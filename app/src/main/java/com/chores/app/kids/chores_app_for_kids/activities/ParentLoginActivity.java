@@ -15,15 +15,13 @@ import com.google.android.gms.auth.api.signin.GoogleSignInClient;
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions;
 import com.google.android.gms.common.api.ApiException;
 import com.google.android.gms.tasks.Task;
-import com.google.firebase.auth.AuthCredential;
 import com.google.firebase.auth.FirebaseAuth;
-import com.google.firebase.auth.GoogleAuthProvider;
 import com.chores.app.kids.chores_app_for_kids.R;
-import com.chores.app.kids.chores_app_for_kids.utils.FirebaseHelper;
 
 public class ParentLoginActivity extends AppCompatActivity {
 
     private static final int RC_SIGN_IN = 9001;
+    private static final String TAG = "ParentLoginActivity";
 
     private Button btnGoogleSignIn;
     private Button btnJoinFamily;
@@ -36,20 +34,34 @@ public class ParentLoginActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_parent_login);
 
-        initializeFirebase();
+        // Check if user is already signed in
+        firebaseAuth = FirebaseAuth.getInstance();
+        if (firebaseAuth.getCurrentUser() != null) {
+            navigateToDashboard();
+            return;
+        }
+
+        initializeGoogleSignIn();
         initializeViews();
         setupClickListeners();
     }
 
-    private void initializeFirebase() {
-        firebaseAuth = FirebaseAuth.getInstance();
+    private void initializeGoogleSignIn() {
+        try {
+            // Configure Google Sign-In
+            GoogleSignInOptions gso = new GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+                    .requestIdToken(getString(R.string.default_web_client_id))
+                    .requestEmail()
+                    .requestProfile()
+                    .build();
 
-        GoogleSignInOptions gso = new GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
-                .requestIdToken(getString(R.string.default_web_client_id))
-                .requestEmail()
-                .build();
+            googleSignInClient = GoogleSignIn.getClient(this, gso);
+            Log.d(TAG, "Google Sign-In initialized successfully");
 
-        googleSignInClient = GoogleSignIn.getClient(this, gso);
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to initialize Google Sign-In", e);
+            Toast.makeText(this, "Google Sign-In setup failed. Please check configuration.", Toast.LENGTH_LONG).show();
+        }
     }
 
     private void initializeViews() {
@@ -58,62 +70,103 @@ public class ParentLoginActivity extends AppCompatActivity {
     }
 
     private void setupClickListeners() {
-        btnGoogleSignIn.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                signInWithGoogle();
-            }
-        });
+        btnGoogleSignIn.setOnClickListener(v -> signInWithGoogle());
 
-        btnJoinFamily.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                // TODO: Implement join family with code functionality
-                Toast.makeText(ParentLoginActivity.this, "Join Family feature coming soon", Toast.LENGTH_SHORT).show();
-            }
-        });
+        btnJoinFamily.setOnClickListener(v ->
+                Toast.makeText(this, "Join Family feature coming soon", Toast.LENGTH_SHORT).show()
+        );
     }
 
     private void signInWithGoogle() {
-        GoogleSignInOptions gso = new GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
-                .requestIdToken(getString(R.string.default_web_client_id))
-                .requestEmail()
-                .build();
+        if (googleSignInClient == null) {
+            Toast.makeText(this, "Google Sign-In not properly configured", Toast.LENGTH_LONG).show();
+            return;
+        }
 
-        GoogleSignInClient googleSignInClient = GoogleSignIn.getClient(this, gso);
-        Intent signInIntent = googleSignInClient.getSignInIntent();
-        startActivityForResult(signInIntent, 9001);
-    }
-
-    @Override
-    public void onActivityResult(int requestCode, int resultCode, Intent data) {
-        super.onActivityResult(requestCode, resultCode, data);
-
-        if (requestCode == 9001) {
-            Task<GoogleSignInAccount> task = GoogleSignIn.getSignedInAccountFromIntent(data);
-            try {
-                GoogleSignInAccount account = task.getResult(ApiException.class);
-                firebaseAuthWithGoogle(account.getIdToken());
-            } catch (ApiException e) {
-                Log.e("GoogleSignIn", "signInResult:failed code=" + e.getStatusCode());
-                Toast.makeText(this, "Google sign in failed: " + e.getStatusCode(), Toast.LENGTH_LONG).show();
-            }
+        try {
+            // Sign out any previous account to ensure fresh sign-in
+            googleSignInClient.signOut().addOnCompleteListener(this, task -> {
+                Intent signInIntent = googleSignInClient.getSignInIntent();
+                startActivityForResult(signInIntent, RC_SIGN_IN);
+            });
+        } catch (Exception e) {
+            Log.e(TAG, "Error initiating Google Sign-In", e);
+            Toast.makeText(this, "Failed to start Google Sign-In", Toast.LENGTH_SHORT).show();
         }
     }
 
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+
+        if (requestCode == RC_SIGN_IN) {
+            Task<GoogleSignInAccount> task = GoogleSignIn.getSignedInAccountFromIntent(data);
+            handleSignInResult(task);
+        }
+    }
+
+    private void handleSignInResult(Task<GoogleSignInAccount> completedTask) {
+        try {
+            GoogleSignInAccount account = completedTask.getResult(ApiException.class);
+            Log.d(TAG, "Google Sign-In successful: " + account.getEmail());
+
+            // Authenticate with Firebase
+            firebaseAuthWithGoogle(account.getIdToken());
+
+        } catch (ApiException e) {
+            Log.e(TAG, "Google Sign-In failed", e);
+            handleSignInError(e.getStatusCode());
+        }
+    }
+
+    private void handleSignInError(int statusCode) {
+        String errorMessage;
+        switch (statusCode) {
+            case 10: // DEVELOPER_ERROR
+                errorMessage = "Configuration error. Please check:\n" +
+                        "1. SHA-1 certificate in Firebase\n" +
+                        "2. Package name matches\n" +
+                        "3. google-services.json is updated";
+                break;
+            case 12500: // SIGN_IN_REQUIRED
+                errorMessage = "Sign-in cancelled. Please try again.";
+                break;
+            case 7: // NETWORK_ERROR
+                errorMessage = "Network error. Check internet connection.";
+                break;
+            case 8: // INTERNAL_ERROR
+                errorMessage = "Internal error. Please try again.";
+                break;
+            default:
+                errorMessage = "Sign-in failed (Error: " + statusCode + ")";
+        }
+
+        Toast.makeText(this, errorMessage, Toast.LENGTH_LONG).show();
+    }
+
     private void firebaseAuthWithGoogle(String idToken) {
+        if (idToken == null) {
+            Toast.makeText(this, "Failed to get authentication token", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
         AuthHelper.firebaseAuthWithGoogle(idToken, this, task -> {
             if (task.isSuccessful()) {
-                // Success - navigate to dashboard
-                Intent intent = new Intent(ParentLoginActivity.this, ParentDashboardActivity.class);
-                startActivity(intent);
-                finish();
+                Log.d(TAG, "Firebase authentication successful");
+                navigateToDashboard();
             } else {
-                // Error
                 String error = task.getException() != null ?
                         task.getException().getMessage() : "Authentication failed";
-                Toast.makeText(ParentLoginActivity.this, "Authentication failed: " + error, Toast.LENGTH_LONG).show();
+                Log.e(TAG, "Firebase auth failed: " + error);
+                Toast.makeText(this, "Authentication failed: " + error, Toast.LENGTH_LONG).show();
             }
         });
+    }
+
+    private void navigateToDashboard() {
+        Intent intent = new Intent(this, ParentDashboardActivity.class);
+        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+        startActivity(intent);
+        finish();
     }
 }
