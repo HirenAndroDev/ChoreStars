@@ -4,6 +4,7 @@ import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.util.Log;
 import com.google.android.gms.auth.api.signin.GoogleSignIn;
 import com.google.android.gms.auth.api.signin.GoogleSignInAccount;
 import com.google.android.gms.auth.api.signin.GoogleSignInClient;
@@ -27,6 +28,7 @@ import java.util.Map;
 
 public class AuthHelper {
 
+    private static final String TAG = "AuthHelper";
     private static final String PREFS_NAME = "NeatKidPrefs";
     private static final String KEY_USER_ROLE = "user_role";
     private static final String KEY_FAMILY_ID = "family_id";
@@ -48,14 +50,25 @@ public class AuthHelper {
     }
 
     public static void firebaseAuthWithGoogle(String idToken, Context context, OnCompleteListener<AuthResult> listener) {
+        Log.d(TAG, "Starting Firebase authentication with Google");
+
         AuthCredential credential = GoogleAuthProvider.getCredential(idToken, null);
         auth.signInWithCredential(credential)
                 .addOnCompleteListener(task -> {
                     if (task.isSuccessful()) {
+                        Log.d(TAG, "Firebase authentication successful");
                         FirebaseUser firebaseUser = auth.getCurrentUser();
-                        createOrUpdateParentUser(firebaseUser, context, listener);
+                        if (firebaseUser != null) {
+                            Log.d(TAG, "User ID: " + firebaseUser.getUid());
+                            Log.d(TAG, "User email: " + firebaseUser.getEmail());
+                            createOrUpdateParentUser(firebaseUser, context, listener);
+                        } else {
+                            Log.e(TAG, "Firebase user is null after successful authentication");
+                            AuthResult result = new AuthResult(false, "Failed to get user information", null);
+                            listener.onComplete(createTaskFromResult(result));
+                        }
                     } else {
-                        // Create failure AuthResult
+                        Log.e(TAG, "Firebase authentication failed", task.getException());
                         String errorMessage = task.getException() != null ?
                                 task.getException().getMessage() : "Authentication failed";
                         AuthResult result = new AuthResult(false, errorMessage, null);
@@ -66,6 +79,7 @@ public class AuthHelper {
 
     private static void createOrUpdateParentUser(FirebaseUser firebaseUser, Context context, OnCompleteListener<AuthResult> listener) {
         String userId = firebaseUser.getUid();
+        Log.d(TAG, "Checking if user exists: " + userId);
 
         // Check if user already exists
         db.collection("users").document(userId).get()
@@ -73,25 +87,112 @@ public class AuthHelper {
                     if (task.isSuccessful()) {
                         DocumentSnapshot document = task.getResult();
                         if (document.exists()) {
-                            // User exists, check if they have a family
+                            Log.d(TAG, "User document exists, checking family status");
+                            // User exists, update last login and check family
+                            updateUserLastLogin(userId);
+
                             String familyId = document.getString("familyId");
+                            String role = document.getString("role");
+                            String name = document.getString("name");
+
                             if (familyId != null && !familyId.isEmpty()) {
                                 // User has a family, proceed to dashboard
-                                saveUserSession(context, firebaseUser.getDisplayName(), "parent", familyId);
+                                Log.d(TAG, "User has family: " + familyId);
+                                saveUserSession(context, name != null ? name : firebaseUser.getDisplayName(),
+                                        role != null ? role : "parent", familyId);
                                 AuthResult result = new AuthResult(true, "User authenticated successfully", familyId);
                                 listener.onComplete(createTaskFromResult(result));
                             } else {
                                 // User exists but no family, create one
+                                Log.d(TAG, "User exists but no family, creating new family");
                                 createNewFamily(firebaseUser, context, listener);
                             }
                         } else {
                             // New user, create user and family
-                            createNewFamily(firebaseUser, context, listener);
+                            Log.d(TAG, "New user, creating user document and family");
+                            createNewUserAndFamily(firebaseUser, context, listener);
                         }
                     } else {
-                        // Database error
+                        Log.e(TAG, "Error checking user document", task.getException());
                         String errorMessage = task.getException() != null ?
                                 task.getException().getMessage() : "Database error";
+                        AuthResult result = new AuthResult(false, errorMessage, null);
+                        listener.onComplete(createTaskFromResult(result));
+                    }
+                });
+    }
+
+    private static void createNewUserAndFamily(FirebaseUser firebaseUser, Context context, OnCompleteListener<AuthResult> listener) {
+        String userId = firebaseUser.getUid();
+        String familyId = "family_" + System.currentTimeMillis();
+
+        Log.d(TAG, "Creating new user and family - UserID: " + userId + ", FamilyID: " + familyId);
+
+        // Create user document first
+        Map<String, Object> userData = new HashMap<>();
+        userData.put("name", firebaseUser.getDisplayName() != null ? firebaseUser.getDisplayName() : "Parent");
+        userData.put("email", firebaseUser.getEmail() != null ? firebaseUser.getEmail() : "");
+        userData.put("role", "parent");
+        userData.put("familyId", familyId);
+        userData.put("starBalance", 0);
+        userData.put("textToSpeechEnabled", false);
+        userData.put("createdAt", System.currentTimeMillis());
+        userData.put("lastLoginAt", System.currentTimeMillis());
+        userData.put("profileImageUrl", firebaseUser.getPhotoUrl() != null ?
+                firebaseUser.getPhotoUrl().toString() : "");
+
+        Log.d(TAG, "Creating user document with data: " + userData.toString());
+
+        db.collection("users").document(userId).set(userData)
+                .addOnCompleteListener(userTask -> {
+                    if (userTask.isSuccessful()) {
+                        Log.d(TAG, "User document created successfully");
+                        // Now create family document
+                        createFamilyDocument(firebaseUser, familyId, context, listener);
+                    } else {
+                        Log.e(TAG, "Failed to create user document", userTask.getException());
+                        String errorMessage = userTask.getException() != null ?
+                                userTask.getException().getMessage() : "Failed to create user";
+                        AuthResult result = new AuthResult(false, errorMessage, null);
+                        listener.onComplete(createTaskFromResult(result));
+                    }
+                });
+    }
+
+    private static void createFamilyDocument(FirebaseUser firebaseUser, String familyId, Context context, OnCompleteListener<AuthResult> listener) {
+        String userId = firebaseUser.getUid();
+
+        Log.d(TAG, "Creating family document: " + familyId);
+
+        // Create family document
+        Map<String, Object> familyData = new HashMap<>();
+        familyData.put("ownerId", userId);
+
+        ArrayList<String> parentIds = new ArrayList<>();
+        parentIds.add(userId);
+        familyData.put("parentIds", parentIds);
+
+        familyData.put("childIds", new ArrayList<String>());
+        familyData.put("inviteCode", generateInviteCode());
+        familyData.put("inviteCodeExpiry", System.currentTimeMillis() + (24 * 60 * 60 * 1000));
+        familyData.put("createdAt", System.currentTimeMillis());
+        familyData.put("familyName", (firebaseUser.getDisplayName() != null ?
+                firebaseUser.getDisplayName() : "Parent") + "'s Family");
+
+        Log.d(TAG, "Creating family document with data: " + familyData.toString());
+
+        db.collection("families").document(familyId).set(familyData)
+                .addOnCompleteListener(familyTask -> {
+                    if (familyTask.isSuccessful()) {
+                        Log.d(TAG, "Family document created successfully");
+                        saveUserSession(context, firebaseUser.getDisplayName() != null ?
+                                firebaseUser.getDisplayName() : "Parent", "parent", familyId);
+                        AuthResult result = new AuthResult(true, "Family created successfully", familyId);
+                        listener.onComplete(createTaskFromResult(result));
+                    } else {
+                        Log.e(TAG, "Failed to create family document", familyTask.getException());
+                        String errorMessage = familyTask.getException() != null ?
+                                familyTask.getException().getMessage() : "Failed to create family";
                         AuthResult result = new AuthResult(false, errorMessage, null);
                         listener.onComplete(createTaskFromResult(result));
                     }
@@ -102,55 +203,44 @@ public class AuthHelper {
         String userId = firebaseUser.getUid();
         String familyId = "family_" + System.currentTimeMillis();
 
+        Log.d(TAG, "Creating new family for existing user: " + familyId);
+
         // Create family document
-        Family family = new Family(familyId, userId);
-        family.getParentIds().add(userId);
+        createFamilyDocument(firebaseUser, familyId, context, new OnCompleteListener<AuthResult>() {
+            @Override
+            public void onComplete(Task<AuthResult> task) {
+                if (task.isSuccessful()) {
+                    // Update user document with family ID
+                    db.collection("users").document(userId)
+                            .update("familyId", familyId, "lastLoginAt", System.currentTimeMillis())
+                            .addOnCompleteListener(updateTask -> {
+                                if (updateTask.isSuccessful()) {
+                                    Log.d(TAG, "User updated with family ID");
+                                    listener.onComplete(task);
+                                } else {
+                                    Log.e(TAG, "Failed to update user with family ID", updateTask.getException());
+                                    String errorMessage = updateTask.getException() != null ?
+                                            updateTask.getException().getMessage() : "Failed to update user";
+                                    AuthResult result = new AuthResult(false, errorMessage, null);
+                                    listener.onComplete(createTaskFromResult(result));
+                                }
+                            });
+                } else {
+                    listener.onComplete(task);
+                }
+            }
+        });
+    }
 
-        Map<String, Object> familyData = new HashMap<>();
-        familyData.put("ownerId", family.getOwnerId());
-        familyData.put("parentIds", family.getParentIds());
-        familyData.put("childIds", family.getChildIds());
-        familyData.put("inviteCode", generateInviteCode());
-        familyData.put("inviteCodeExpiry", System.currentTimeMillis() + (24 * 60 * 60 * 1000));
-        familyData.put("createdAt", System.currentTimeMillis());
-        familyData.put("familyName", firebaseUser.getDisplayName() + "'s Family");
-
-        db.collection("families").document(familyId).set(familyData)
-                .addOnCompleteListener(familyTask -> {
-                    if (familyTask.isSuccessful()) {
-                        // Create user document
-                        User user = new User(userId, firebaseUser.getDisplayName(),
-                                firebaseUser.getEmail(), "parent", familyId);
-
-                        Map<String, Object> userData = new HashMap<>();
-                        userData.put("name", user.getName());
-                        userData.put("email", user.getEmail());
-                        userData.put("role", user.getRole());
-                        userData.put("familyId", user.getFamilyId());
-                        userData.put("starBalance", 0);
-                        userData.put("textToSpeechEnabled", false);
-                        userData.put("createdAt", System.currentTimeMillis());
-                        userData.put("profileImageUrl", firebaseUser.getPhotoUrl() != null ?
-                                firebaseUser.getPhotoUrl().toString() : "");
-
-                        db.collection("users").document(userId).set(userData)
-                                .addOnCompleteListener(userTask -> {
-                                    if (userTask.isSuccessful()) {
-                                        saveUserSession(context, user.getName(), "parent", familyId);
-                                        AuthResult result = new AuthResult(true, "Family created successfully", familyId);
-                                        listener.onComplete(createTaskFromResult(result));
-                                    } else {
-                                        String errorMessage = userTask.getException() != null ?
-                                                userTask.getException().getMessage() : "Failed to create user";
-                                        AuthResult result = new AuthResult(false, errorMessage, null);
-                                        listener.onComplete(createTaskFromResult(result));
-                                    }
-                                });
+    private static void updateUserLastLogin(String userId) {
+        Log.d(TAG, "Updating last login for user: " + userId);
+        db.collection("users").document(userId)
+                .update("lastLoginAt", System.currentTimeMillis())
+                .addOnCompleteListener(task -> {
+                    if (task.isSuccessful()) {
+                        Log.d(TAG, "Last login updated successfully");
                     } else {
-                        String errorMessage = familyTask.getException() != null ?
-                                familyTask.getException().getMessage() : "Failed to create family";
-                        AuthResult result = new AuthResult(false, errorMessage, null);
-                        listener.onComplete(createTaskFromResult(result));
+                        Log.e(TAG, "Failed to update last login", task.getException());
                     }
                 });
     }
@@ -158,6 +248,8 @@ public class AuthHelper {
     // Join family with invite code (for kids)
     public static void joinFamilyWithCode(String inviteCode, String childName, Context context,
                                           OnCompleteListener<AuthResult> listener) {
+        Log.d(TAG, "Attempting to join family with code: " + inviteCode);
+
         // First, find the family with this invite code
         db.collection("families")
                 .whereEqualTo("inviteCode", inviteCode)
@@ -170,20 +262,23 @@ public class AuthHelper {
                             String familyId = familyDoc.getId();
                             Long expiry = familyDoc.getLong("inviteCodeExpiry");
 
+                            Log.d(TAG, "Found family: " + familyId);
+
                             // Check if code is still valid
                             if (expiry != null && expiry > System.currentTimeMillis()) {
                                 createChildUser(childName, familyId, context, listener);
                             } else {
-                                // Code expired
+                                Log.d(TAG, "Invite code expired");
                                 AuthResult result = new AuthResult(false, "Invite code has expired", null);
                                 listener.onComplete(createTaskFromResult(result));
                             }
                         } else {
-                            // Invalid code
+                            Log.d(TAG, "Invalid invite code");
                             AuthResult result = new AuthResult(false, "Invalid invite code", null);
                             listener.onComplete(createTaskFromResult(result));
                         }
                     } else {
+                        Log.e(TAG, "Error verifying invite code", task.getException());
                         String errorMessage = task.getException() != null ?
                                 task.getException().getMessage() : "Failed to verify invite code";
                         AuthResult result = new AuthResult(false, errorMessage, null);
@@ -194,12 +289,16 @@ public class AuthHelper {
 
     private static void createChildUser(String childName, String familyId, Context context,
                                         OnCompleteListener<AuthResult> listener) {
+        Log.d(TAG, "Creating child user: " + childName + " for family: " + familyId);
+
         // Create anonymous user for child
         auth.signInAnonymously()
                 .addOnCompleteListener(task -> {
                     if (task.isSuccessful()) {
                         FirebaseUser firebaseUser = auth.getCurrentUser();
                         String userId = firebaseUser.getUid();
+
+                        Log.d(TAG, "Anonymous user created: " + userId);
 
                         // Create user document
                         Map<String, Object> userData = new HashMap<>();
@@ -210,14 +309,17 @@ public class AuthHelper {
                         userData.put("starBalance", 0);
                         userData.put("textToSpeechEnabled", true);
                         userData.put("createdAt", System.currentTimeMillis());
+                        userData.put("lastLoginAt", System.currentTimeMillis());
                         userData.put("profileImageUrl", "");
 
                         db.collection("users").document(userId).set(userData)
                                 .addOnCompleteListener(userTask -> {
                                     if (userTask.isSuccessful()) {
+                                        Log.d(TAG, "Child user document created");
                                         // Add child to family
                                         updateFamilyWithNewChild(familyId, userId, childName, context, listener);
                                     } else {
+                                        Log.e(TAG, "Failed to create child user", userTask.getException());
                                         String errorMessage = userTask.getException() != null ?
                                                 userTask.getException().getMessage() : "Failed to create child user";
                                         AuthResult result = new AuthResult(false, errorMessage, null);
@@ -225,6 +327,7 @@ public class AuthHelper {
                                     }
                                 });
                     } else {
+                        Log.e(TAG, "Failed to create anonymous user", task.getException());
                         String errorMessage = task.getException() != null ?
                                 task.getException().getMessage() : "Failed to create anonymous user";
                         AuthResult result = new AuthResult(false, errorMessage, null);
@@ -235,6 +338,8 @@ public class AuthHelper {
 
     private static void updateFamilyWithNewChild(String familyId, String childId, String childName, Context context,
                                                  OnCompleteListener<AuthResult> listener) {
+        Log.d(TAG, "Adding child to family: " + childId + " -> " + familyId);
+
         db.collection("families").document(familyId).get()
                 .addOnCompleteListener(task -> {
                     if (task.isSuccessful()) {
@@ -248,10 +353,12 @@ public class AuthHelper {
                                     .update("childIds", childIds)
                                     .addOnCompleteListener(updateTask -> {
                                         if (updateTask.isSuccessful()) {
+                                            Log.d(TAG, "Child added to family successfully");
                                             saveUserSession(context, childName, "child", familyId);
                                             AuthResult result = new AuthResult(true, "Successfully joined family", familyId);
                                             listener.onComplete(createTaskFromResult(result));
                                         } else {
+                                            Log.e(TAG, "Failed to update family", updateTask.getException());
                                             String errorMessage = updateTask.getException() != null ?
                                                     updateTask.getException().getMessage() : "Failed to update family";
                                             AuthResult result = new AuthResult(false, errorMessage, null);
@@ -259,10 +366,12 @@ public class AuthHelper {
                                         }
                                     });
                         } else {
+                            Log.e(TAG, "Family document not found");
                             AuthResult result = new AuthResult(false, "Family not found", null);
                             listener.onComplete(createTaskFromResult(result));
                         }
                     } else {
+                        Log.e(TAG, "Error accessing family data", task.getException());
                         String errorMessage = task.getException() != null ?
                                 task.getException().getMessage() : "Failed to access family data";
                         AuthResult result = new AuthResult(false, errorMessage, null);
@@ -284,6 +393,7 @@ public class AuthHelper {
 
     // Session management
     private static void saveUserSession(Context context, String userName, String role, String familyId) {
+        Log.d(TAG, "Saving user session - Name: " + userName + ", Role: " + role + ", Family: " + familyId);
         SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
         SharedPreferences.Editor editor = prefs.edit();
         editor.putString(KEY_USER_NAME, userName);
@@ -309,6 +419,7 @@ public class AuthHelper {
 
     // Sign out
     public static void signOut(Context context) {
+        Log.d(TAG, "Signing out user");
         auth.signOut();
 
         // Clear Google Sign-in

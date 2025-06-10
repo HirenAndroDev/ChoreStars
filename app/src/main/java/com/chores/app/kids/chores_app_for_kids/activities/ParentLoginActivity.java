@@ -37,31 +37,27 @@ public class ParentLoginActivity extends AppCompatActivity {
         // Check if user is already signed in
         firebaseAuth = FirebaseAuth.getInstance();
         if (firebaseAuth.getCurrentUser() != null) {
+            Log.d(TAG, "User already signed in, checking user data");
+            // User is already signed in, navigate to dashboard
             navigateToDashboard();
             return;
         }
 
-        initializeGoogleSignIn();
+        initializeFirebase();
         initializeViews();
         setupClickListeners();
     }
 
-    private void initializeGoogleSignIn() {
-        try {
-            // Configure Google Sign-In
-            GoogleSignInOptions gso = new GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
-                    .requestIdToken(getString(R.string.default_web_client_id))
-                    .requestEmail()
-                    .requestProfile()
-                    .build();
+    private void initializeFirebase() {
+        firebaseAuth = FirebaseAuth.getInstance();
 
-            googleSignInClient = GoogleSignIn.getClient(this, gso);
-            Log.d(TAG, "Google Sign-In initialized successfully");
+        GoogleSignInOptions gso = new GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+                .requestIdToken(getString(R.string.default_web_client_id))
+                .requestEmail()
+                .requestProfile()
+                .build();
 
-        } catch (Exception e) {
-            Log.e(TAG, "Failed to initialize Google Sign-In", e);
-            Toast.makeText(this, "Google Sign-In setup failed. Please check configuration.", Toast.LENGTH_LONG).show();
-        }
+        googleSignInClient = GoogleSignIn.getClient(this, gso);
     }
 
     private void initializeViews() {
@@ -72,31 +68,28 @@ public class ParentLoginActivity extends AppCompatActivity {
     private void setupClickListeners() {
         btnGoogleSignIn.setOnClickListener(v -> signInWithGoogle());
 
-        btnJoinFamily.setOnClickListener(v ->
-                Toast.makeText(this, "Join Family feature coming soon", Toast.LENGTH_SHORT).show()
-        );
+        btnJoinFamily.setOnClickListener(v -> {
+            // TODO: Implement join family with code functionality
+            Toast.makeText(ParentLoginActivity.this, "Join Family feature coming soon", Toast.LENGTH_SHORT).show();
+        });
     }
 
     private void signInWithGoogle() {
-        if (googleSignInClient == null) {
-            Toast.makeText(this, "Google Sign-In not properly configured", Toast.LENGTH_LONG).show();
-            return;
-        }
+        Log.d(TAG, "Starting Google Sign-In");
 
-        try {
-            // Sign out any previous account to ensure fresh sign-in
-            googleSignInClient.signOut().addOnCompleteListener(this, task -> {
-                Intent signInIntent = googleSignInClient.getSignInIntent();
-                startActivityForResult(signInIntent, RC_SIGN_IN);
-            });
-        } catch (Exception e) {
-            Log.e(TAG, "Error initiating Google Sign-In", e);
-            Toast.makeText(this, "Failed to start Google Sign-In", Toast.LENGTH_SHORT).show();
-        }
+        // Show loading state
+        btnGoogleSignIn.setEnabled(false);
+        btnGoogleSignIn.setText("Signing in...");
+
+        // Sign out any previous account to ensure fresh sign-in
+        googleSignInClient.signOut().addOnCompleteListener(this, task -> {
+            Intent signInIntent = googleSignInClient.getSignInIntent();
+            startActivityForResult(signInIntent, RC_SIGN_IN);
+        });
     }
 
     @Override
-    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+    public void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
 
         if (requestCode == RC_SIGN_IN) {
@@ -115,6 +108,7 @@ public class ParentLoginActivity extends AppCompatActivity {
 
         } catch (ApiException e) {
             Log.e(TAG, "Google Sign-In failed", e);
+            resetButtonState();
             handleSignInError(e.getStatusCode());
         }
     }
@@ -145,14 +139,21 @@ public class ParentLoginActivity extends AppCompatActivity {
     }
 
     private void firebaseAuthWithGoogle(String idToken) {
+        Log.d(TAG, "Authenticating with Firebase");
+
         if (idToken == null) {
+            Log.e(TAG, "ID Token is null");
+            resetButtonState();
             Toast.makeText(this, "Failed to get authentication token", Toast.LENGTH_SHORT).show();
             return;
         }
 
         AuthHelper.firebaseAuthWithGoogle(idToken, this, task -> {
+            resetButtonState();
+
             if (task.isSuccessful()) {
-                Log.d(TAG, "Firebase authentication successful");
+                Log.d(TAG, "Firebase authentication and user creation successful");
+                Toast.makeText(this, "Welcome! Setting up your account...", Toast.LENGTH_SHORT).show();
                 navigateToDashboard();
             } else {
                 String error = task.getException() != null ?
@@ -164,9 +165,15 @@ public class ParentLoginActivity extends AppCompatActivity {
     }
 
     private void navigateToDashboard() {
+        Log.d(TAG, "Navigating to dashboard");
         Intent intent = new Intent(this, ParentDashboardActivity.class);
         intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
         startActivity(intent);
         finish();
+    }
+
+    private void resetButtonState() {
+        btnGoogleSignIn.setEnabled(true);
+        btnGoogleSignIn.setText("Sign in with Google");
     }
 }
