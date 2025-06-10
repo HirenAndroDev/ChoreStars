@@ -1,6 +1,8 @@
 package com.chores.app.kids.chores_app_for_kids.utils;
 
 
+import android.util.Log;
+
 import com.google.android.gms.tasks.OnCompleteListener;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
@@ -585,6 +587,11 @@ public class FirebaseHelper {
         void onError(String error);
     }
 
+    public interface CreateUserCallback {
+        void onUserCreated(String userId);
+        void onError(String error);
+    }
+
     public interface FamilyMembersCallback {
         void onMembersLoaded(List<User> members);
         void onError(String error);
@@ -630,32 +637,26 @@ public class FirebaseHelper {
     public static void getFamilyInviteCode(String familyId, InviteCodeCallback callback) {
         db.collection("families").document(familyId).get()
                 .addOnCompleteListener(task -> {
-                    if (task.isSuccessful() && task.getResult().exists()) {
-                        DocumentSnapshot doc = task.getResult();
-                        String inviteCode = doc.getString("inviteCode");
-                        Long expiry = doc.getLong("inviteCodeExpiry");
-
-                        // Check if code is still valid
-                        if (expiry != null && expiry > System.currentTimeMillis()) {
-                            callback.onInviteCodeLoaded(inviteCode, expiry);
+                    if (task.isSuccessful()) {
+                        DocumentSnapshot document = task.getResult();
+                        if (document.exists()) {
+                            String inviteCode = document.getString("inviteCode");
+                            Long expiryTime = document.getLong("inviteCodeExpiry");
+                            callback.onInviteCodeLoaded(
+                                    inviteCode != null ? inviteCode : "",
+                                    expiryTime != null ? expiryTime : 0
+                            );
                         } else {
-                            // Code expired, generate new one
-                            generateInviteCode(familyId, result -> {
-                                if (result.isSuccessful()) {
-                                    getFamilyInviteCode(familyId, callback); // Recursive call to get the new code
-                                } else {
-                                    callback.onError("Failed to generate new invite code");
-                                }
-                            });
+                            callback.onError("Family not found");
                         }
                     } else {
-                        callback.onError("Family not found");
+                        callback.onError("Failed to load invite code");
                     }
                 });
     }
-
+    // Callback interfaces
     public interface InviteCodeCallback {
-        void onInviteCodeLoaded(String code, long expiry);
+        void onInviteCodeLoaded(String inviteCode, long expiryTime);
         void onError(String error);
     }
 
@@ -1145,4 +1146,82 @@ public class FirebaseHelper {
                     }
                 });
     }
+
+    // Get family invite code
+
+    // Create child user with profile image
+// Create child user WITHOUT Firebase Auth (just Firestore document)
+    public static void createChildUser(String childName, String familyId, String profileImageUrl, CreateUserCallback callback) {
+        android.util.Log.d("FirebaseHelper", "Creating child user: " + childName + " for family: " + familyId);
+
+        // Generate a unique ID for the child (without using Firebase Auth)
+        String childId = "child_" + System.currentTimeMillis() + "_" + java.util.UUID.randomUUID().toString().substring(0, 8);
+
+        // Create user document directly in Firestore
+        Map<String, Object> userData = new HashMap<>();
+        userData.put("name", childName);
+        userData.put("email", "");
+        userData.put("role", "child");
+        userData.put("familyId", familyId);
+        userData.put("starBalance", 0);
+        userData.put("textToSpeechEnabled", true);
+        userData.put("createdAt", System.currentTimeMillis());
+        userData.put("lastLoginAt", System.currentTimeMillis());
+        userData.put("profileImageUrl", profileImageUrl != null ? profileImageUrl : "");
+        userData.put("isActive", true);
+
+        db.collection("users").document(childId).set(userData)
+                .addOnCompleteListener(userTask -> {
+                    if (userTask.isSuccessful()) {
+                        android.util.Log.d("FirebaseHelper", "Child user document created: " + childId);
+                        // Add child to family
+                        addChildToFamily(familyId, childId, callback);
+                    } else {
+                        android.util.Log.e("FirebaseHelper", "Failed to create child user", userTask.getException());
+                        String errorMessage = userTask.getException() != null ?
+                                userTask.getException().getMessage() : "Failed to create child user";
+                        callback.onError(errorMessage);
+                    }
+                });
+    }
+
+
+    private static void addChildToFamily(String familyId, String childId, CreateUserCallback callback) {
+        android.util.Log.d("FirebaseHelper", "Adding child to family: " + childId + " -> " + familyId);
+
+        db.collection("families").document(familyId).get()
+                .addOnCompleteListener(task -> {
+                    if (task.isSuccessful()) {
+                        DocumentSnapshot document = task.getResult();
+                        if (document.exists()) {
+                            ArrayList<String> childIds = (ArrayList<String>) document.get("childIds");
+                            if (childIds == null) childIds = new ArrayList<>();
+                            childIds.add(childId);
+
+                            db.collection("families").document(familyId)
+                                    .update("childIds", childIds)
+                                    .addOnCompleteListener(updateTask -> {
+                                        if (updateTask.isSuccessful()) {
+                                            android.util.Log.d("FirebaseHelper", "Child added to family successfully");
+                                            callback.onUserCreated(childId);
+                                        } else {
+                                            android.util.Log.e("FirebaseHelper", "Failed to update family", updateTask.getException());
+                                            String errorMessage = updateTask.getException() != null ?
+                                                    updateTask.getException().getMessage() : "Failed to update family";
+                                            callback.onError(errorMessage);
+                                        }
+                                    });
+                        } else {
+                            callback.onError("Family not found");
+                        }
+                    } else {
+                        String errorMessage = task.getException() != null ?
+                                task.getException().getMessage() : "Failed to access family data";
+                        callback.onError(errorMessage);
+                    }
+                });
+    }
+
+
+
 }

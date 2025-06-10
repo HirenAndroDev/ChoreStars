@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/background_light">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="@dimen/spacing_large">
+
+        <!-- Header -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Add Kid Profile"
+            android:textSize="24sp"
+            android:textStyle="bold"
+            android:textColor="@color/text_primary"
+            android:gravity="center"
+            android:layout_marginBottom="@dimen/spacing_large" />
+
+        <!-- Profile Image Section -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:layout_marginBottom="@dimen/spacing_large">
+
+            <ImageView
+                android:id="@+id/iv_kid_profile"
+                android:layout_width="120dp"
+                android:layout_height="120dp"
+                android:src="@drawable/ic_child"
+                android:scaleType="centerCrop"
+                android:background="@drawable/circle_background"
+                android:layout_marginBottom="@dimen/spacing_medium" />
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal">
+
+                <Button
+                    android:id="@+id/btn_take_photo"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Take Photo"
+                    android:textSize="14sp"
+                    android:layout_marginEnd="@dimen/spacing_small"
+                    style="@style/Widget.AppCompat.Button.Colored" />
+
+                <Button
+                    android:id="@+id/btn_choose_gallery"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Choose from Gallery"
+                    android:textSize="14sp"
+                    style="@style/Widget.AppCompat.Button.Colored" />
+
+            </LinearLayout>
+
+        </LinearLayout>
+
+        <!-- Name Input -->
+        <com.google.android.material.textfield.TextInputLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="@dimen/spacing_large"
+            app:boxStrokeColor="@color/colorPrimary"
+            app:hintTextColor="@color/colorAccent">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/et_kid_name"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="Kid's Name"
+                android:inputType="textPersonName|textCapWords"
+                android:maxLength="20"
+                android:textSize="16sp" />
+
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <!-- Action Buttons -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginTop="@dimen/spacing_large">
+
+            <Button
+                android:id="@+id/btn_cancel"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Cancel"
+                android:textColor="@color/text_secondary"
+                android:background="@drawable/button_outlined"
+                android:layout_marginEnd="@dimen/spacing_small" />
+
+            <Button
+                android:id="@+id/btn_save_kid"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Save Kid Profile"
+                android:textColor="@android:color/white"
+                android:background="@drawable/button_rounded"
+                android:layout_marginStart="@dimen/spacing_small" />
+
+        </LinearLayout>
+
+    </LinearLayout>
+
+</ScrollView>
