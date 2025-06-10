@@ -52,17 +52,56 @@ public class AddKidProfileActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_add_kid_profile);
 
-        // Get family ID from intent
+        // Try to get family ID from intent first
         familyId = getIntent().getStringExtra("familyId");
-        if (familyId == null || familyId.isEmpty()) {
-            Toast.makeText(this, "Error: Family not found", Toast.LENGTH_SHORT).show();
-            finish();
-            return;
-        }
 
-        initializeViews();
-        setupClickListeners();
-        setDefaultProfileImage();
+        // If not provided in intent, get it from current user
+        if (familyId == null || familyId.isEmpty()) {
+            getCurrentUserFamilyId();
+        } else {
+            initializeViews();
+            setupClickListeners();
+            setDefaultProfileImage();
+        }
+    }
+
+    private void getCurrentUserFamilyId() {
+        Log.d(TAG, "Getting family ID from current user");
+
+        FirebaseHelper.getCurrentUser(new FirebaseHelper.CurrentUserCallback() {
+            @Override
+            public void onUserLoaded(com.chores.app.kids.chores_app_for_kids.models.User user) {
+                familyId = user.getFamilyId();
+
+                if (familyId != null && !familyId.isEmpty()) {
+                    Log.d(TAG, "Found family ID: " + familyId);
+                    runOnUiThread(() -> {
+                        initializeViews();
+                        setupClickListeners();
+                        setDefaultProfileImage();
+                    });
+                } else {
+                    Log.e(TAG, "User has no family ID");
+                    runOnUiThread(() -> {
+                        Toast.makeText(AddKidProfileActivity.this,
+                                "Error: You must be part of a family to add kids. Please join or create a family first.",
+                                Toast.LENGTH_LONG).show();
+                        finish();
+                    });
+                }
+            }
+
+            @Override
+            public void onError(String error) {
+                Log.e(TAG, "Failed to get current user: " + error);
+                runOnUiThread(() -> {
+                    Toast.makeText(AddKidProfileActivity.this,
+                            "Error: Unable to get user information. Please try again.",
+                            Toast.LENGTH_LONG).show();
+                    finish();
+                });
+            }
+        });
     }
 
     private void initializeViews() {
@@ -224,6 +263,13 @@ public class AddKidProfileActivity extends AppCompatActivity {
     }
 
     private void saveKidProfile() {
+        // Validate that we have a family ID
+        if (familyId == null || familyId.isEmpty()) {
+            Toast.makeText(this, "Error: Family not found. Please try again.", Toast.LENGTH_SHORT).show();
+            getCurrentUserFamilyId();
+            return;
+        }
+
         if (!validateInput()) {
             return;
         }
