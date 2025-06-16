@@ -229,25 +229,30 @@ public class RewardsFragment extends Fragment {
             return;
         }
 
-        Log.d("RewardsFragment", "Loading rewards for familyId: " + familyId +
-                ", child: " + selectedChild.getName());
+        String childId = selectedChild.getChildId();
+        Log.d("RewardsFragment", "Loading rewards for childId: " + childId +
+                ", familyId: " + familyId + ", child: " + selectedChild.getName());
 
-        // Load all rewards for the family
-        FirebaseHelper.getFamilyRewards(familyId, new FirebaseHelper.RewardsCallback() {
+        // Load rewards specifically assigned to this child
+        FirebaseHelper.getRewardsForChild(childId, familyId, new FirebaseHelper.RewardsCallback() {
             @Override
             public void onRewardsLoaded(List<Reward> rewards) {
-                Log.d("RewardsFragment", "Rewards loaded successfully, count: " + rewards.size());
+                Log.d("RewardsFragment", "Child-specific rewards loaded successfully, count: " + rewards.size());
                 if (getActivity() != null) {
                     getActivity().runOnUiThread(() -> {
                         rewardList.clear();
                         rewardList.addAll(rewards);
                         rewardAdapter.notifyDataSetChanged();
-                        updateEmptyState(rewards.isEmpty(), "No rewards available for " + selectedChild.getName());
+
+                        String emptyMessage = rewards.isEmpty() ?
+                                "No rewards assigned to " + selectedChild.getName() + " yet" :
+                                "";
+                        updateEmptyState(rewards.isEmpty(), emptyMessage);
 
                         // Log each reward for debugging
                         for (Reward reward : rewards) {
-                            Log.d("RewardsFragment", "Reward: " + reward.getName() +
-                                    ", Stars: " + reward.getStarCost());
+                            Log.d("RewardsFragment", "Reward for " + selectedChild.getName() + ": " +
+                                    reward.getName() + ", Stars: " + reward.getStarCost());
                         }
                     });
                 }
@@ -255,7 +260,7 @@ public class RewardsFragment extends Fragment {
 
             @Override
             public void onError(String error) {
-                Log.e("RewardsFragment", "Error loading rewards: " + error);
+                Log.e("RewardsFragment", "Error loading child-specific rewards: " + error);
                 if (getActivity() != null) {
                     getActivity().runOnUiThread(() -> {
                         updateEmptyState(true, "Error loading rewards: " + error);
