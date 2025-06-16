@@ -209,8 +209,8 @@ public class RewardsFragment extends Fragment {
         Log.d("RewardsFragment", "Loading rewards for familyId: " + familyId +
                 ", child: " + selectedChild.getName());
 
-        // Load all rewards for the family
-        FirebaseHelper.getFamilyRewards(familyId, new FirebaseHelper.RewardsCallback() {
+
+        FirebaseHelper.getRewardsForChild(childId,familyId, new FirebaseHelper.RewardsCallback() {
             @Override
             public void onRewardsLoaded(List<Reward> rewards) {
                 Log.d("RewardsFragment", "Rewards loaded successfully, count: " + rewards.size());
