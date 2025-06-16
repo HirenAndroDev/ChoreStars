@@ -306,7 +306,7 @@ public class MainRewardFragment extends Fragment implements KidProfilesParentDia
         }
     }
 
-    // In MainRewardFragment.java - modify the notifyChildFragmentsOfSelectionChange method
+// In MainRewardFragment.java - update the notifyChildFragmentsOfSelectionChange method
     private void notifyChildFragmentsOfSelectionChange() {
         // Notify both fragments to refresh their data
         try {
@@ -329,7 +329,10 @@ public class MainRewardFragment extends Fragment implements KidProfilesParentDia
                 String redeemFragmentTag = "f" + 1; // ViewPager2 uses "f" + position as tag
                 Fragment redeemFragment = fragmentManager.findFragmentByTag(redeemFragmentTag);
                 if (redeemFragment instanceof RewardRedeemFragment) {
-                    ((RewardRedeemFragment) redeemFragment).refreshRedeemedRewards();
+                    // Set the selected child directly
+                    ((RewardRedeemFragment) redeemFragment).setSelectedChild(selectedKid);
+                    // Then trigger the refresh
+                    ((RewardRedeemFragment) redeemFragment).onChildSelectionChanged();
                 }
             }
         } catch (Exception e) {
