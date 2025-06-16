@@ -44,7 +44,8 @@ public class RewardsFragment extends Fragment {
     private String familyId;
     private String childId;
 
-    private MainRewardFragment parentFragment;
+    // Store the selected child directly in this fragment
+    private ChildProfile selectedChild;
 
     @Nullable
     @Override
@@ -54,11 +55,7 @@ public class RewardsFragment extends Fragment {
         initializeViews(view);
         setupRecyclerView();
         setupClickListeners();
-        // Don't load rewards immediately, wait for selected child
-        // Get parent fragment reference
-        if (getParentFragment() instanceof MainRewardFragment) {
-            parentFragment = (MainRewardFragment) getParentFragment();
-        }
+
         return view;
     }
 
@@ -68,28 +65,21 @@ public class RewardsFragment extends Fragment {
 
         Log.d("RewardsFragment", "onViewCreated called");
 
-        // Ensure parent fragment reference is set
-        if (getParentFragment() instanceof MainRewardFragment) {
-            parentFragment = (MainRewardFragment) getParentFragment();
-            Log.d("RewardsFragment", "Parent fragment set successfully");
-        } else {
-            Log.w("RewardsFragment", "Parent fragment is not MainRewardFragment: " +
-                    (getParentFragment() != null ? getParentFragment().getClass().getSimpleName() : "null"));
-        }
-
-        // Load rewards after view is created
-        loadRewards();
-        loadUserStarBalance();
+        // Initial load - wait for parent to notify us of selected child
+        // Don't load rewards immediately
     }
 
     @Override
     public void onResume() {
         super.onResume();
-        // Load rewards when fragment becomes visible
-        loadRewards();
-        loadUserStarBalance();
-
-
+        // Only load if we have a selected child
+        if (selectedChild != null) {
+            loadRewards();
+            loadUserStarBalance();
+        } else {
+            // Show message asking to select a child
+            updateEmptyState(true, "Please select a child to view rewards");
+        }
     }
 
     private void initializeViews(View view) {
@@ -133,21 +123,54 @@ public class RewardsFragment extends Fragment {
         startActivity(intent);
     }
 
-    private ChildProfile getSelectedChild() {
-        // Get selected child from parent fragment
-//        Fragment parentFragment = getParentFragment();
-//        if (parentFragment instanceof MainRewardFragment) {
-//            MainRewardFragment mainRewardFragment = (MainRewardFragment) parentFragment;
-//            return mainRewardFragment.getSelectedKid();
-//        }
+    // Method to get the MainRewardFragment and its selected child
+    private MainRewardFragment getMainRewardFragment() {
+        Fragment parentFragment = getParentFragment();
+        if (parentFragment instanceof MainRewardFragment) {
+            return (MainRewardFragment) parentFragment;
+        }
 
-        if (parentFragment != null) {
-            ChildProfile selectedKid = parentFragment.getSelectedKid();
-            if (selectedKid != null) {
-                if (!selectedKid.getChildId().equals(childId)) {
-                    childId = selectedKid.getChildId();
+        // Try to find it through the activity's fragment manager
+        // This handles the ViewPager2 case where getParentFragment() returns null
+        try {
+            if (getActivity() != null) {
+                List<Fragment> fragments = getActivity().getSupportFragmentManager().getFragments();
+                for (Fragment fragment : fragments) {
+                    if (fragment instanceof MainRewardFragment) {
+                        return (MainRewardFragment) fragment;
+                    }
                 }
             }
+        } catch (Exception e) {
+            Log.w("RewardsFragment", "Error finding MainRewardFragment", e);
+        }
+
+        return null;
+    }
+
+    private ChildProfile getSelectedChild() {
+        // First, try to use our stored selected child
+        if (selectedChild != null) {
+            Log.d("RewardsFragment", "getSelectedChild - returning stored: " + selectedChild.getName());
+            return selectedChild;
+        }
+
+        // Try to get from MainRewardFragment
+        MainRewardFragment mainRewardFragment = getMainRewardFragment();
+        if (mainRewardFragment != null) {
+            ChildProfile child = mainRewardFragment.getSelectedKid();
+            if (child != null) {
+                selectedChild = child; // Store it locally
+                if (!child.getChildId().equals(childId)) {
+                    childId = child.getChildId();
+                }
+                Log.d("RewardsFragment", "getSelectedChild - got from MainRewardFragment: " + child.getName());
+                return child;
+            } else {
+                Log.d("RewardsFragment", "getSelectedChild - MainRewardFragment.getSelectedKid() returned null");
+            }
+        } else {
+            Log.d("RewardsFragment", "getSelectedChild - MainRewardFragment not found");
         }
 
         return null;
@@ -209,8 +232,8 @@ public class RewardsFragment extends Fragment {
         Log.d("RewardsFragment", "Loading rewards for familyId: " + familyId +
                 ", child: " + selectedChild.getName());
 
-
-        FirebaseHelper.getRewardsForChild(childId,familyId, new FirebaseHelper.RewardsCallback() {
+        // Load all rewards for the family
+        FirebaseHelper.getFamilyRewards(familyId, new FirebaseHelper.RewardsCallback() {
             @Override
             public void onRewardsLoaded(List<Reward> rewards) {
                 Log.d("RewardsFragment", "Rewards loaded successfully, count: " + rewards.size());
@@ -287,10 +310,10 @@ public class RewardsFragment extends Fragment {
                         if (task.isSuccessful()) {
                             Toast.makeText(getContext(), "Reward redeemed successfully for " + selectedChildName + "!", Toast.LENGTH_SHORT).show();
 
-                            // Refresh the selected child's star balance in parent fragment
-                            Fragment parentFragment = getParentFragment();
-                            if (parentFragment instanceof MainRewardFragment) {
-                                ((MainRewardFragment) parentFragment).updateKidProfileUI();
+                            // Refresh the selected child's star balance in MainRewardFragment
+                            MainRewardFragment mainRewardFragment = getMainRewardFragment();
+                            if (mainRewardFragment != null) {
+                                mainRewardFragment.updateKidProfileUI();
                             }
 
                             // Refresh rewards list to update availability
@@ -315,26 +338,19 @@ public class RewardsFragment extends Fragment {
 
     private void refreshRedeemHistoryTab() {
         // Try to refresh the redeem history tab
-        Fragment parentFragment = getParentFragment();
-        if (parentFragment instanceof MainRewardFragment) {
-            MainRewardFragment mainRewardFragment = (MainRewardFragment) parentFragment;
-            // Access the ViewPager2 and find the RewardRedeemFragment
-            try {
-                androidx.viewpager2.widget.ViewPager2 viewPager = mainRewardFragment.getView().findViewById(R.id.viewPager);
-                if (viewPager != null) {
-                    androidx.fragment.app.FragmentActivity activity = mainRewardFragment.requireActivity();
-                    androidx.fragment.app.FragmentManager fragmentManager = activity.getSupportFragmentManager();
+        try {
+            if (getActivity() != null) {
+                androidx.fragment.app.FragmentManager fragmentManager = getActivity().getSupportFragmentManager();
 
-                    // Find the RewardRedeemFragment
-                    String fragmentTag = "f" + 1; // ViewPager2 uses "f" + position as tag
-                    Fragment fragment = fragmentManager.findFragmentByTag(fragmentTag);
-                    if (fragment instanceof RewardRedeemFragment) {
-                        ((RewardRedeemFragment) fragment).refreshRedeemedRewards();
-                    }
+                // Find the RewardRedeemFragment
+                String fragmentTag = "f" + 1; // ViewPager2 uses "f" + position as tag
+                Fragment fragment = fragmentManager.findFragmentByTag(fragmentTag);
+                if (fragment instanceof RewardRedeemFragment) {
+                    ((RewardRedeemFragment) fragment).refreshRedeemedRewards();
                 }
-            } catch (Exception e) {
-                // Ignore errors in refresh
             }
+        } catch (Exception e) {
+            Log.w("RewardsFragment", "Error refreshing redeem history tab", e);
         }
     }
 
@@ -347,7 +363,13 @@ public class RewardsFragment extends Fragment {
     }
 
     // Public method to refresh rewards when child selection changes
+    // This is called by MainRewardFragment when the selected child changes
     public void onChildSelectionChanged() {
+        Log.d("RewardsFragment", "onChildSelectionChanged called");
+
+        // Clear the stored selected child so it gets refreshed
+        selectedChild = null;
+
         if (getView() != null && isAdded()) {
             loadRewards();
             loadUserStarBalance();
@@ -361,6 +383,16 @@ public class RewardsFragment extends Fragment {
                     }
                 });
             }
+        }
+    }
+
+    // Method to set the selected child directly (called by MainRewardFragment)
+    public void setSelectedChild(ChildProfile child) {
+        Log.d("RewardsFragment", "setSelectedChild called with: " +
+                (child != null ? child.getName() : "null"));
+        this.selectedChild = child;
+        if (child != null) {
+            this.childId = child.getChildId();
         }
     }
 }
