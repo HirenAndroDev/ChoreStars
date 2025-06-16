@@ -15,10 +15,15 @@ import com.google.firebase.firestore.WriteBatch;
 import com.chores.app.kids.chores_app_for_kids.models.User;
 import com.chores.app.kids.chores_app_for_kids.models.Family;
 import com.chores.app.kids.chores_app_for_kids.models.Task;
+import com.chores.app.kids.chores_app_for_kids.models.TaskPreset;
+import com.chores.app.kids.chores_app_for_kids.models.TaskIcon;
+import com.chores.app.kids.chores_app_for_kids.models.ChildProfile;
 
 import com.chores.app.kids.chores_app_for_kids.models.Reward;
 import com.chores.app.kids.chores_app_for_kids.models.StarTransaction;
+import com.chores.app.kids.chores_app_for_kids.models.RedeemedReward;
 import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -98,7 +103,7 @@ public class FirebaseHelper {
 
     public static void generateInviteCode(String familyId, OnCompleteListener<Void> listener) {
         String inviteCode = String.format("%06d", new Random().nextInt(1000000));
-        long expiryTime = System.currentTimeMillis() + (24 * 60 * 60 * 1000); // 24 hours
+        long expiryTime = System.currentTimeMillis() + (7 * 24 * 60 * 60 * 1000); // 7 days
 
         Map<String, Object> updates = new HashMap<>();
         updates.put("inviteCode", inviteCode);
@@ -120,13 +125,47 @@ public class FirebaseHelper {
                 .addOnCompleteListener(listener);
     }
 
+    // Debug method to check all children in database
+    public static void debugAllChildren() {
+        android.util.Log.d("FirebaseHelper", "=== DEBUG: Checking all children in database ===");
+
+        db.collection("users")
+                .whereEqualTo("role", "child")
+                .get()
+                .addOnCompleteListener(task -> {
+                    if (task.isSuccessful()) {
+                        android.util.Log.d("FirebaseHelper", "DEBUG: Found " + task.getResult().size() + " total children");
+
+                        for (DocumentSnapshot doc : task.getResult()) {
+                            android.util.Log.d("FirebaseHelper", "DEBUG Child: " + doc.getString("name") +
+                                    " (ID: " + doc.getId() + ", familyId: " + doc.getString("familyId") +
+                                    ", role: " + doc.getString("role") + ")");
+                        }
+                    } else {
+                        android.util.Log.e("FirebaseHelper", "DEBUG: Failed to query all children", task.getException());
+                    }
+                });
+    }
+
     public static void getFamilyChildren(String familyId, FamilyChildrenCallback callback) {
+        android.util.Log.d("FirebaseHelper", "getFamilyChildren called with familyId: " + familyId);
+
         db.collection("users")
                 .whereEqualTo("familyId", familyId)
                 .whereEqualTo("role", "child")
                 .get()
                 .addOnCompleteListener(task -> {
+                    android.util.Log.d("FirebaseHelper", "Firebase query completed. Success: " + task.isSuccessful());
+
                     if (task.isSuccessful()) {
+                        android.util.Log.d("FirebaseHelper", "Query result size: " + task.getResult().size());
+
+                        // Log all users found (for debugging)
+                        for (DocumentSnapshot doc : task.getResult()) {
+                            android.util.Log.d("FirebaseHelper", "Found user: " + doc.getString("name") +
+                                    " (role: " + doc.getString("role") + ", familyId: " + doc.getString("familyId") + ")");
+                        }
+
                         List<User> children = new ArrayList<>();
                         for (DocumentSnapshot doc : task.getResult()) {
                             User child = new User();
@@ -134,13 +173,16 @@ public class FirebaseHelper {
                             child.setName(doc.getString("name"));
                             child.setRole(doc.getString("role"));
                             child.setFamilyId(doc.getString("familyId"));
+                            child.setProfileImageUrl(doc.getString("profileImageUrl"));
                             Long balance = doc.getLong("starBalance");
                             child.setStarBalance(balance != null ? balance.intValue() : 0);
                             children.add(child);
                         }
                         callback.onChildrenLoaded(children);
                     } else {
-                        callback.onError("Failed to load children");
+                        String errorMsg = task.getException() != null ? task.getException().getMessage() : "Unknown error";
+                        android.util.Log.e("FirebaseHelper", "Failed to query children: " + errorMsg);
+                        callback.onError("Failed to load children: " + errorMsg);
                     }
                 });
     }
@@ -159,10 +201,20 @@ public class FirebaseHelper {
                             member.setEmail(doc.getString("email"));
                             member.setRole(doc.getString("role"));
                             member.setFamilyId(doc.getString("familyId"));
+                            member.setProfileImageUrl(doc.getString("profileImageUrl"));
                             Long balance = doc.getLong("starBalance");
                             member.setStarBalance(balance != null ? balance.intValue() : 0);
+
+                            // Load invite code data for children
+                            if ("child".equals(member.getRole())) {
+                                member.setInviteCode(doc.getString("inviteCode"));
+                                Long expiry = doc.getLong("inviteCodeExpiry");
+                                member.setInviteCodeExpires(expiry);
+                            }
+
                             members.add(member);
                         }
+
                         callback.onMembersLoaded(members);
                     } else {
                         callback.onError("Failed to load family members");
@@ -172,16 +224,57 @@ public class FirebaseHelper {
 
     // ==================== TASK MANAGEMENT ====================
 
+    // Debug method to get all family tasks regardless of status
+    public static void getAllFamilyTasksForDebug(String familyId, TasksCallback callback) {
+        db.collection("tasks")
+                .whereEqualTo("familyId", familyId)
+                .get()
+                .addOnCompleteListener(task -> {
+                    if (task.isSuccessful()) {
+                        List<Task> tasks = new ArrayList<>();
+                        for (DocumentSnapshot doc : task.getResult()) {
+                            Task taskObj = documentToTask(doc);
+                            tasks.add(taskObj);
+                        }
+                        callback.onTasksLoaded(tasks);
+                    } else {
+                        String errorMsg = task.getException() != null ?
+                                task.getException().getMessage() : "Unknown error";
+                        callback.onError("Failed to load tasks: " + errorMsg);
+                    }
+                });
+    }
+
+    // Method to fix task status if needed
+    public static void fixTaskStatus(String taskId, OnCompleteListener<Void> listener) {
+        Log.d("FirebaseHelper", "Fixing task status for taskId: " + taskId);
+
+        db.collection("tasks").document(taskId)
+                .update("status", "active")
+                .addOnCompleteListener(result -> {
+                    if (result.isSuccessful()) {
+                        Log.d("FirebaseHelper", "Task status fixed successfully");
+                    } else {
+                        Log.e("FirebaseHelper", "Failed to fix task status", result.getException());
+                    }
+                    listener.onComplete(result);
+                });
+    }
+
     public static void addTask(com.chores.app.kids.chores_app_for_kids.models.Task task, OnCompleteListener<DocumentReference> listener) {
         Map<String, Object> taskData = new HashMap<>();
         taskData.put("name", task.getName());
+        taskData.put("notes", task.getNotes());
         taskData.put("iconName", task.getIconName());
+        taskData.put("iconUrl", task.getIconUrl());
         taskData.put("starReward", task.getStarReward());
         taskData.put("assignedKids", task.getAssignedKids());
         taskData.put("familyId", task.getFamilyId());
         taskData.put("createdBy", task.getCreatedBy());
-        taskData.put("startDate", task.getStartDate());
+        taskData.put("startDateTimestamp", task.getStartDateTimestamp());
         taskData.put("repeatType", task.getRepeatType());
+        taskData.put("customDays", task.getCustomDays());
+
         taskData.put("reminderTime", task.getReminderTime());
         taskData.put("photoProofRequired", task.isPhotoProofRequired());
         taskData.put("status", task.getStatus());
@@ -193,21 +286,27 @@ public class FirebaseHelper {
     }
 
     public static void getFamilyTasks(String familyId, TasksCallback callback) {
+        Log.d("FirebaseHelper", "Loading tasks for familyId: " + familyId);
+
         db.collection("tasks")
                 .whereEqualTo("familyId", familyId)
                 .whereEqualTo("status", "active")
-                .orderBy("createdTimestamp", Query.Direction.DESCENDING)
                 .get()
                 .addOnCompleteListener(task -> {
                     if (task.isSuccessful()) {
+                        Log.d("FirebaseHelper", "Query successful, found " + task.getResult().size() + " tasks");
                         List<Task> tasks = new ArrayList<>();
                         for (DocumentSnapshot doc : task.getResult()) {
+                            Log.d("FirebaseHelper", "Processing task: " + doc.getId() + " - " + doc.getString("name"));
                             Task taskObj = documentToTask(doc);
                             tasks.add(taskObj);
                         }
                         callback.onTasksLoaded(tasks);
                     } else {
-                        callback.onError("Failed to load tasks");
+                        String errorMsg = task.getException() != null ?
+                                task.getException().getMessage() : "Unknown error";
+                        Log.e("FirebaseHelper", "Failed to load tasks: " + errorMsg, task.getException());
+                        callback.onError("Failed to load tasks: " + errorMsg);
                     }
                 });
     }
@@ -228,6 +327,117 @@ public class FirebaseHelper {
                         callback.onTasksLoaded(tasks);
                     } else {
                         callback.onError("Failed to load tasks");
+                    }
+                });
+    }
+
+    public static void getTasksForDate(String childId, String date, OnTasksLoadedListener callback) {
+        getCurrentUser(new CurrentUserCallback() {
+            @Override
+            public void onUserLoaded(User user) {
+                if (user.getFamilyId() != null) {
+                    // Parse the date string to get timestamp for start and end of day
+                    long targetDateTimestamp = 0;
+                    if (date != null && !date.isEmpty()) {
+                        try {
+                            // Parse ISO date format (yyyy-MM-dd)
+                            String[] dateParts = date.split("-");
+                            if (dateParts.length == 3) {
+                                int year = Integer.parseInt(dateParts[0]);
+                                int month = Integer.parseInt(dateParts[1]) - 1; // Calendar month is 0-based
+                                int day = Integer.parseInt(dateParts[2]);
+
+                                Calendar cal = Calendar.getInstance();
+                                cal.set(year, month, day, 0, 0, 0);
+                                cal.set(Calendar.MILLISECOND, 0);
+                                targetDateTimestamp = cal.getTimeInMillis();
+                            }
+                        } catch (Exception e) {
+                            Log.e("FirebaseHelper", "Error parsing date: " + date, e);
+                            targetDateTimestamp = System.currentTimeMillis();
+                        }
+                    } else {
+                        targetDateTimestamp = System.currentTimeMillis();
+                    }
+
+                    final long finalTargetTimestamp = targetDateTimestamp;
+
+                    db.collection("tasks")
+                            .whereEqualTo("familyId", user.getFamilyId())
+                            .whereArrayContains("assignedKids", childId)
+                            .whereEqualTo("status", "active")
+                            .get()
+                            .addOnCompleteListener(task -> {
+                                if (task.isSuccessful()) {
+                                    List<Task> filteredTasks = new ArrayList<>();
+                                    for (DocumentSnapshot doc : task.getResult()) {
+                                        Task taskObj = documentToTask(doc);
+                                        // Check if task should be shown on this date
+                                        if (taskObj.isScheduledForDate(finalTargetTimestamp)) {
+                                            // Check completion status for specific date
+                                            checkTaskCompletionForDate(taskObj.getTaskId(), childId, date, isCompleted -> {
+                                                taskObj.setCompleted(isCompleted);
+                                            });
+                                            filteredTasks.add(taskObj);
+                                        }
+                                    }
+                                    callback.onTasksLoaded(filteredTasks);
+                                } else {
+                                    callback.onError("Failed to load tasks");
+                                }
+                            });
+                } else {
+                    callback.onError("User has no family ID");
+                }
+            }
+
+            @Override
+            public void onError(String error) {
+                callback.onError(error);
+            }
+        });
+    }
+
+    public static void updateTask(Task task, OnTaskUpdatedListener callback) {
+        Map<String, Object> updates = new HashMap<>();
+        updates.put("name", task.getName());
+        updates.put("notes", task.getNotes());
+        updates.put("iconName", task.getIconName());
+        updates.put("iconUrl", task.getIconUrl());
+        updates.put("starReward", task.getStarReward());
+        updates.put("assignedKids", task.getAssignedKids());
+        updates.put("startDateTimestamp", task.getStartDateTimestamp());
+        updates.put("repeatType", task.getRepeatType());
+        updates.put("customDays", task.getCustomDays());
+        updates.put("reminderTime", task.getReminderTime());
+        updates.put("photoProofRequired", task.isPhotoProofRequired());
+        updates.put("status", task.getStatus());
+
+        db.collection("tasks").document(task.getTaskId())
+                .update(updates)
+                .addOnCompleteListener(updateTask -> {
+                    if (updateTask.isSuccessful()) {
+                        callback.onTaskUpdated();
+                    } else {
+                        String errorMessage = updateTask.getException() != null ?
+                                updateTask.getException().getMessage() : "Failed to update task";
+                        callback.onError(errorMessage);
+                    }
+                });
+    }
+
+    private static void checkTaskCompletionForDate(String taskId, String userId, String date, TaskCompletionStatusCallback callback) {
+        db.collection("taskCompletions")
+                .whereEqualTo("taskId", taskId)
+                .whereEqualTo("userId", userId)
+                .whereEqualTo("date", date)
+                .get()
+                .addOnCompleteListener(task -> {
+                    if (task.isSuccessful()) {
+                        boolean isCompleted = !task.getResult().isEmpty();
+                        callback.onStatusReceived(isCompleted);
+                    } else {
+                        callback.onStatusReceived(false);
                     }
                 });
     }
@@ -270,12 +480,78 @@ public class FirebaseHelper {
                 });
     }
 
+    public static void uncompleteTask(String taskId, String userId, OnCompleteListener<Void> listener) {
+        String today = getCurrentDateString();
+
+        // Remove task completion record for today
+        db.collection("taskCompletions")
+                .whereEqualTo("taskId", taskId)
+                .whereEqualTo("userId", userId)
+                .whereEqualTo("date", today)
+                .get()
+                .addOnCompleteListener(queryTask -> {
+                    if (queryTask.isSuccessful() && !queryTask.getResult().isEmpty()) {
+                        // Get the completion record
+                        DocumentSnapshot completionDoc = queryTask.getResult().getDocuments().get(0);
+                        Long starsAwarded = completionDoc.getLong("starsAwarded");
+                        int stars = starsAwarded != null ? starsAwarded.intValue() : 0;
+
+                        // Delete the completion record
+                        completionDoc.getReference().delete()
+                                .addOnCompleteListener(deleteTask -> {
+                                    if (deleteTask.isSuccessful()) {
+                                        // Update user's star balance (subtract stars)
+                                        if (stars > 0) {
+                                            // Get task details for transaction description
+                                            db.collection("tasks").document(taskId).get()
+                                                    .addOnCompleteListener(taskDocTask -> {
+                                                        String taskName = "Unknown Task";
+                                                        String familyId = null;
+
+                                                        if (taskDocTask.isSuccessful() && taskDocTask.getResult().exists()) {
+                                                            DocumentSnapshot taskDoc = taskDocTask.getResult();
+                                                            taskName = taskDoc.getString("name");
+                                                            familyId = taskDoc.getString("familyId");
+                                                        }
+
+                                                        if (familyId != null) {
+                                                            updateStarBalance(userId, -stars, familyId,
+                                                                    "Task uncompleted: " + taskName, taskId, null);
+                                                        }
+                                                    });
+                                        }
+
+                                        // Create success task for listener
+                                        com.google.android.gms.tasks.Task<Void> successTask =
+                                                com.google.android.gms.tasks.Tasks.forResult(null);
+                                        listener.onComplete(successTask);
+                                    } else {
+                                        // Create failure task for listener
+                                        com.google.android.gms.tasks.Task<Void> failedTask =
+                                                com.google.android.gms.tasks.Tasks.forException(
+                                                        deleteTask.getException() != null ? deleteTask.getException()
+                                                                : new Exception("Failed to delete completion record"));
+                                        listener.onComplete(failedTask);
+                                    }
+                                });
+                    } else {
+                        // No completion record found or query failed
+                        com.google.android.gms.tasks.Task<Void> failedTask =
+                                com.google.android.gms.tasks.Tasks.forException(
+                                        queryTask.getException() != null ? queryTask.getException()
+                                                : new Exception("No completion record found"));
+                        listener.onComplete(failedTask);
+                    }
+                });
+    }
+
     // ==================== REWARD MANAGEMENT ====================
 
     public static void addReward(Reward reward, OnCompleteListener<DocumentReference> listener) {
         Map<String, Object> rewardData = new HashMap<>();
         rewardData.put("name", reward.getName());
         rewardData.put("iconName", reward.getIconName());
+        rewardData.put("iconUrl", reward.getIconUrl());
         rewardData.put("starCost", reward.getStarCost());
         rewardData.put("availableForKids", reward.getAvailableForKids());
         rewardData.put("familyId", reward.getFamilyId());
@@ -346,6 +622,7 @@ public class FirebaseHelper {
                                         DocumentSnapshot userDoc = userTask.getResult();
                                         Long balance = userDoc.getLong("starBalance");
                                         int currentBalance = balance != null ? balance.intValue() : 0;
+                                        String childName = userDoc.getString("name");
 
                                         if (currentBalance >= cost) {
                                             // Create redemption record
@@ -357,22 +634,48 @@ public class FirebaseHelper {
                                             redemptionData.put("starsSpent", cost);
                                             redemptionData.put("status", "pending");
 
-                                            db.collection("rewardRedemptions").add(redemptionData)
-                                                    .addOnCompleteListener(redemptionResult -> {
-                                                        if (redemptionResult.isSuccessful()) {
-                                                            // Deduct stars from user balance
-                                                            updateStarBalance(userId, -cost, familyId, "Redeemed: " + rewardName, null, rewardId);
-                                                            // Create success task for listener
-                                                            com.google.android.gms.tasks.Task<Void> successTask = com.google.android.gms.tasks.Tasks.forResult(null);
-                                                            listener.onComplete(successTask);
-                                                        } else {
-                                                            // Create failure task for listener
-                                                            com.google.android.gms.tasks.Task<Void> failedTask = com.google.android.gms.tasks.Tasks.forException(
-                                                                    redemptionResult.getException() != null ? redemptionResult.getException()
-                                                                            : new Exception("Failed to create redemption"));
-                                                            listener.onComplete(failedTask);
-                                                        }
-                                                    });
+                                            // Create RedeemedReward object
+                                            Reward reward = documentToReward(rewardDoc);
+                                            RedeemedReward redeemedReward = new RedeemedReward(reward, userId, childName);
+
+                                            // Save to both collections
+                                            WriteBatch batch = db.batch();
+
+                                            // Old redemption record
+                                            DocumentReference redemptionRef = db.collection("rewardRedemptions").document();
+                                            batch.set(redemptionRef, redemptionData);
+
+                                            // New redeemed reward record
+                                            DocumentReference redeemedRef = db.collection("redeemedRewards").document();
+                                            Map<String, Object> redeemedData = new HashMap<>();
+                                            redeemedData.put("rewardId", redeemedReward.getRewardId());
+                                            redeemedData.put("rewardName", redeemedReward.getRewardName());
+                                            redeemedData.put("iconName", redeemedReward.getIconName());
+                                            redeemedData.put("iconUrl", redeemedReward.getIconUrl());
+                                            redeemedData.put("starCost", redeemedReward.getStarCost());
+                                            redeemedData.put("childId", redeemedReward.getChildId());
+                                            redeemedData.put("childName", redeemedReward.getChildName());
+                                            redeemedData.put("familyId", redeemedReward.getFamilyId());
+                                            redeemedData.put("redeemedAt", redeemedReward.getRedeemedAt());
+                                            redeemedData.put("timestamp", redeemedReward.getTimestamp());
+
+                                            batch.set(redeemedRef, redeemedData);
+
+                                            batch.commit().addOnCompleteListener(batchResult -> {
+                                                if (batchResult.isSuccessful()) {
+                                                    // Deduct stars from user balance
+                                                    updateStarBalance(userId, -cost, familyId, "Redeemed: " + rewardName, null, rewardId);
+                                                    // Create success task for listener
+                                                    com.google.android.gms.tasks.Task<Void> successTask = com.google.android.gms.tasks.Tasks.forResult(null);
+                                                    listener.onComplete(successTask);
+                                                } else {
+                                                    // Create failure task for listener
+                                                    com.google.android.gms.tasks.Task<Void> failedTask = com.google.android.gms.tasks.Tasks.forException(
+                                                            batchResult.getException() != null ? batchResult.getException()
+                                                                    : new Exception("Failed to create redemption"));
+                                                    listener.onComplete(failedTask);
+                                                }
+                                            });
                                         } else {
                                             // Insufficient balance - create failure task
                                             com.google.android.gms.tasks.Task<Void> failedTask = com.google.android.gms.tasks.Tasks.forException(
@@ -395,6 +698,178 @@ public class FirebaseHelper {
                         listener.onComplete(failedTask);
                     }
                 });
+    }
+
+    // ==================== REDEEMED REWARDS MANAGEMENT ====================
+
+    public static void getRedeemedRewards(String familyId, RedeemedRewardsCallback callback) {
+        db.collection("redeemedRewards")
+                .whereEqualTo("familyId", familyId)
+                .orderBy("timestamp", Query.Direction.DESCENDING)
+                .get()
+                .addOnCompleteListener(task -> {
+                    if (task.isSuccessful()) {
+                        List<RedeemedReward> redeemedRewards = new ArrayList<>();
+                        for (DocumentSnapshot doc : task.getResult()) {
+                            RedeemedReward redeemedReward = documentToRedeemedReward(doc);
+                            redeemedRewards.add(redeemedReward);
+                        }
+                        callback.onRedeemedRewardsLoaded(redeemedRewards);
+                    } else {
+                        callback.onError("Failed to load redeemed rewards");
+                    }
+                });
+    }
+
+    public static void getRedeemedRewardsForChild(String childId, String familyId, RedeemedRewardsCallback callback) {
+        db.collection("redeemedRewards")
+                .whereEqualTo("childId", childId)
+                .whereEqualTo("familyId", familyId)
+                .orderBy("timestamp", Query.Direction.DESCENDING)
+                .get()
+                .addOnCompleteListener(task -> {
+                    if (task.isSuccessful()) {
+                        List<RedeemedReward> redeemedRewards = new ArrayList<>();
+                        for (DocumentSnapshot doc : task.getResult()) {
+                            RedeemedReward redeemedReward = documentToRedeemedReward(doc);
+                            redeemedRewards.add(redeemedReward);
+                        }
+                        callback.onRedeemedRewardsLoaded(redeemedRewards);
+                    } else {
+                        callback.onError("Failed to load redeemed rewards for child");
+                    }
+                });
+    }
+
+    public static void redeemRewardWithSelectedChild(String rewardId, String selectedChildId, OnCompleteListener<Void> listener) {
+        // First check if selected child has enough stars
+        db.collection("rewards").document(rewardId).get()
+                .addOnCompleteListener(rewardTask -> {
+                    if (rewardTask.isSuccessful() && rewardTask.getResult().exists()) {
+                        DocumentSnapshot rewardDoc = rewardTask.getResult();
+                        Long starCost = rewardDoc.getLong("starCost");
+                        int cost = starCost != null ? starCost.intValue() : 0;
+                        String familyId = rewardDoc.getString("familyId");
+                        String rewardName = rewardDoc.getString("name");
+
+                        // Check selected child's star balance
+                        db.collection("users").document(selectedChildId).get()
+                                .addOnCompleteListener(userTask -> {
+                                    if (userTask.isSuccessful() && userTask.getResult().exists()) {
+                                        DocumentSnapshot userDoc = userTask.getResult();
+                                        Long balance = userDoc.getLong("starBalance");
+                                        int currentBalance = balance != null ? balance.intValue() : 0;
+                                        String childName = userDoc.getString("name");
+
+                                        if (currentBalance >= cost) {
+                                            // Create redemption record
+                                            Map<String, Object> redemptionData = new HashMap<>();
+                                            redemptionData.put("rewardId", rewardId);
+                                            redemptionData.put("userId", selectedChildId);
+                                            redemptionData.put("familyId", familyId);
+                                            redemptionData.put("redeemedAt", System.currentTimeMillis());
+                                            redemptionData.put("starsSpent", cost);
+                                            redemptionData.put("status", "pending");
+
+                                            // Create RedeemedReward object
+                                            Reward reward = documentToReward(rewardDoc);
+                                            RedeemedReward redeemedReward = new RedeemedReward(reward, selectedChildId, childName);
+
+                                            // Save to both collections
+                                            WriteBatch batch = db.batch();
+
+                                            // Old redemption record
+                                            DocumentReference redemptionRef = db.collection("rewardRedemptions").document();
+                                            batch.set(redemptionRef, redemptionData);
+
+                                            // New redeemed reward record
+                                            DocumentReference redeemedRef = db.collection("redeemedRewards").document();
+                                            Map<String, Object> redeemedData = new HashMap<>();
+                                            redeemedData.put("rewardId", redeemedReward.getRewardId());
+                                            redeemedData.put("rewardName", redeemedReward.getRewardName());
+                                            redeemedData.put("iconName", redeemedReward.getIconName());
+                                            redeemedData.put("iconUrl", redeemedReward.getIconUrl());
+                                            redeemedData.put("starCost", redeemedReward.getStarCost());
+                                            redeemedData.put("childId", redeemedReward.getChildId());
+                                            redeemedData.put("childName", redeemedReward.getChildName());
+                                            redeemedData.put("familyId", redeemedReward.getFamilyId());
+                                            redeemedData.put("redeemedAt", redeemedReward.getRedeemedAt());
+                                            redeemedData.put("timestamp", redeemedReward.getTimestamp());
+
+                                            batch.set(redeemedRef, redeemedData);
+
+                                            batch.commit().addOnCompleteListener(batchResult -> {
+                                                if (batchResult.isSuccessful()) {
+                                                    // Deduct stars from selected child's balance
+                                                    updateStarBalance(selectedChildId, -cost, familyId, "Redeemed: " + rewardName, null, rewardId);
+                                                    // Create success task for listener
+                                                    com.google.android.gms.tasks.Task<Void> successTask = com.google.android.gms.tasks.Tasks.forResult(null);
+                                                    listener.onComplete(successTask);
+                                                } else {
+                                                    // Create failure task for listener
+                                                    com.google.android.gms.tasks.Task<Void> failedTask = com.google.android.gms.tasks.Tasks.forException(
+                                                            batchResult.getException() != null ? batchResult.getException()
+                                                                    : new Exception("Failed to create redemption"));
+                                                    listener.onComplete(failedTask);
+                                                }
+                                            });
+                                        } else {
+                                            // Insufficient balance - create failure task
+                                            com.google.android.gms.tasks.Task<Void> failedTask = com.google.android.gms.tasks.Tasks.forException(
+                                                    new Exception("Insufficient star balance. " + childName + " has " + currentBalance + " stars but needs " + cost + " stars."));
+                                            listener.onComplete(failedTask);
+                                        }
+                                    } else {
+                                        // User not found - create failure task
+                                        com.google.android.gms.tasks.Task<Void> failedTask = com.google.android.gms.tasks.Tasks.forException(
+                                                userTask.getException() != null ? userTask.getException()
+                                                        : new Exception("Child not found"));
+                                        listener.onComplete(failedTask);
+                                    }
+                                });
+                    } else {
+                        // Reward not found - create failure task
+                        com.google.android.gms.tasks.Task<Void> failedTask = com.google.android.gms.tasks.Tasks.forException(
+                                rewardTask.getException() != null ? rewardTask.getException()
+                                        : new Exception("Reward not found"));
+                        listener.onComplete(failedTask);
+                    }
+                });
+    }
+
+    private static RedeemedReward documentToRedeemedReward(DocumentSnapshot doc) {
+        RedeemedReward redeemedReward = new RedeemedReward();
+        redeemedReward.setRedeemedRewardId(doc.getId());
+        redeemedReward.setRewardId(doc.getString("rewardId"));
+        redeemedReward.setRewardName(doc.getString("rewardName"));
+        redeemedReward.setIconName(doc.getString("iconName"));
+        redeemedReward.setIconUrl(doc.getString("iconUrl"));
+
+        Long starCost = doc.getLong("starCost");
+        redeemedReward.setStarCost(starCost != null ? starCost.intValue() : 0);
+
+        redeemedReward.setChildId(doc.getString("childId"));
+        redeemedReward.setChildName(doc.getString("childName"));
+        redeemedReward.setFamilyId(doc.getString("familyId"));
+
+        // Handle both Date and Timestamp objects
+        Object redeemedAtObj = doc.get("redeemedAt");
+        if (redeemedAtObj instanceof com.google.firebase.Timestamp) {
+            redeemedReward.setRedeemedAt(((com.google.firebase.Timestamp) redeemedAtObj).toDate());
+        } else if (redeemedAtObj instanceof Long) {
+            redeemedReward.setRedeemedAt(new java.util.Date((Long) redeemedAtObj));
+        }
+
+        Long timestamp = doc.getLong("timestamp");
+        redeemedReward.setTimestamp(timestamp != null ? timestamp : 0);
+
+        return redeemedReward;
+    }
+
+    public interface RedeemedRewardsCallback {
+        void onRedeemedRewardsLoaded(List<RedeemedReward> redeemedRewards);
+
+        void onError(String error);
     }
 
     // ==================== STAR MANAGEMENT ====================
@@ -483,6 +958,433 @@ public class FirebaseHelper {
                 });
     }
 
+    // ==================== CHILD PROFILE MANAGEMENT ====================
+
+    public static void getChildProfiles(OnChildProfilesLoadedListener listener) {
+        getCurrentUser(new CurrentUserCallback() {
+            @Override
+            public void onUserLoaded(User user) {
+                if (user.getFamilyId() != null) {
+                    getChildProfilesWithInviteCodes(user.getFamilyId(), new ChildProfilesCallback() {
+                        @Override
+                        public void onProfilesLoaded(List<ChildProfile> profiles) {
+                            listener.onChildProfilesLoaded(profiles);
+                        }
+
+                        @Override
+                        public void onError(String error) {
+                            listener.onError(error);
+                        }
+                    });
+                } else {
+                    listener.onError("User has no family ID");
+                }
+            }
+
+            @Override
+            public void onError(String error) {
+                listener.onError(error);
+            }
+        });
+    }
+
+    public interface OnChildProfilesLoadedListener {
+        void onChildProfilesLoaded(List<ChildProfile> profiles);
+
+        void onError(String error);
+    }
+
+    public static void generateMissingInviteCodes(String familyId, OnCompleteListener<Void> listener) {
+        generateInviteCodesForAllChildren(familyId, listener);
+    }
+
+    public static void getChildrenInviteCodes(String familyId, ChildrenInviteCodesCallback callback) {
+        db.collection("users")
+                .whereEqualTo("familyId", familyId)
+                .whereEqualTo("role", "child")
+                .get()
+                .addOnCompleteListener(task -> {
+                    if (task.isSuccessful()) {
+                        List<Map<String, Object>> childrenData = new ArrayList<>();
+                        for (DocumentSnapshot doc : task.getResult()) {
+                            Map<String, Object> childData = new HashMap<>();
+                            childData.put("name", doc.getString("name"));
+                            childData.put("inviteCode", doc.getString("inviteCode"));
+                            Long expiry = doc.getLong("inviteCodeExpiry");
+                            childData.put("inviteCodeExpiry", expiry != null ? expiry : 0);
+                            Long balance = doc.getLong("starBalance");
+                            childData.put("starBalance", balance != null ? balance.intValue() : 0);
+                            childData.put("childId", doc.getId());
+                            childrenData.add(childData);
+                        }
+                        callback.onInviteCodesLoaded(childrenData);
+                    } else {
+                        callback.onError("Failed to load children invite codes");
+                    }
+                });
+    }
+
+    public static void getChildProfilesWithInviteCodes(String familyId, ChildProfilesCallback callback) {
+        db.collection("users")
+                .whereEqualTo("familyId", familyId)
+                .whereEqualTo("role", "child")
+                .get()
+                .addOnCompleteListener(task -> {
+                    if (task.isSuccessful()) {
+                        List<ChildProfile> profiles = new ArrayList<>();
+                        for (DocumentSnapshot doc : task.getResult()) {
+                            ChildProfile profile = new ChildProfile();
+                            profile.setChildId(doc.getId());
+                            profile.setName(doc.getString("name"));
+                            profile.setFamilyId(doc.getString("familyId"));
+                            profile.setInviteCode(doc.getString("inviteCode"));
+                            Long expiry = doc.getLong("inviteCodeExpiry");
+                            profile.setInviteCodeExpiry(expiry != null ? expiry : 0);
+                            profile.setProfileImageUrl(doc.getString("profileImageUrl"));
+                            Long balance = doc.getLong("starBalance");
+                            profile.setStarBalance(balance != null ? balance.intValue() : 0);
+                            Boolean active = doc.getBoolean("isActive");
+                            profile.setActive(active == null || active);
+                            Long created = doc.getLong("createdAt");
+                            profile.setCreatedAt(created != null ? created : System.currentTimeMillis());
+                            profiles.add(profile);
+                        }
+                        callback.onProfilesLoaded(profiles);
+                    } else {
+                        callback.onError("Failed to load child profiles");
+                    }
+                });
+    }
+
+    public static void generateChildInviteCode(String childId, OnCompleteListener<Void> listener) {
+        String inviteCode = String.format("%06d", new Random().nextInt(1000000));
+        long expiryTime = System.currentTimeMillis() + (7 * 24 * 60 * 60 * 1000); // 7 days instead of 24 hours
+
+        Log.d("FirebaseHelper", "Generating invite code: " + inviteCode +
+                " for child: " + childId + ", expires at: " + expiryTime);
+
+        Map<String, Object> updates = new HashMap<>();
+        updates.put("inviteCode", inviteCode);
+        updates.put("inviteCodeExpiry", expiryTime);
+
+        db.collection("users")
+                .document(childId)
+                .update(updates)
+                .addOnCompleteListener(result -> {
+                    if (result.isSuccessful()) {
+                        Log.d("FirebaseHelper", "Successfully generated invite code for child: " + childId);
+                    } else {
+                        Log.e("FirebaseHelper", "Failed to generate invite code for child: " + childId, result.getException());
+                    }
+                    listener.onComplete(result);
+                });
+    }
+
+    public static void generateInviteCodesForAllChildren(String familyId, OnCompleteListener<Void> listener) {
+        db.collection("users")
+                .whereEqualTo("familyId", familyId)
+                .whereEqualTo("role", "child")
+                .get()
+                .addOnCompleteListener(task -> {
+                    if (task.isSuccessful()) {
+                        WriteBatch batch = db.batch();
+                        boolean hasUpdates = false;
+
+                        for (DocumentSnapshot doc : task.getResult()) {
+                            String existingCode = doc.getString("inviteCode");
+                            Long expiry = doc.getLong("inviteCodeExpiry");
+                            long currentTime = System.currentTimeMillis();
+
+                            // Generate code if none exists or if expired
+                            if (existingCode == null || existingCode.isEmpty() ||
+                                    (expiry != null && expiry <= currentTime)) {
+
+                                String newInviteCode = String.format("%06d", new Random().nextInt(1000000));
+                                long expiryTime = System.currentTimeMillis() + (7 * 24 * 60 * 60 * 1000); // 7 days
+
+                                batch.update(doc.getReference(), "inviteCode", newInviteCode);
+                                batch.update(doc.getReference(), "inviteCodeExpiry", expiryTime);
+                                hasUpdates = true;
+                            }
+                        }
+
+                        if (hasUpdates) {
+                            batch.commit().addOnCompleteListener(listener);
+                        } else {
+                            // No updates needed, create success task
+                            com.google.android.gms.tasks.TaskCompletionSource<Void> taskSource =
+                                    new com.google.android.gms.tasks.TaskCompletionSource<>();
+                            taskSource.setResult(null);
+                            listener.onComplete(taskSource.getTask());
+                        }
+                    } else {
+                        // Create failed task
+                        com.google.android.gms.tasks.TaskCompletionSource<Void> taskSource =
+                                new com.google.android.gms.tasks.TaskCompletionSource<>();
+                        taskSource.setException(task.getException() != null ? task.getException() :
+                                new Exception("Failed to load children"));
+                        listener.onComplete(taskSource.getTask());
+                    }
+                });
+    }
+
+    public static void deleteChildProfile(String childId, OnCompleteListener<Void> listener) {
+        // Soft delete - mark as inactive
+        Map<String, Object> updates = new HashMap<>();
+        updates.put("isActive", false);
+        updates.put("inviteCode", "");
+        updates.put("inviteCodeExpiry", 0);
+
+        db.collection("users")
+                .document(childId)
+                .update(updates)
+                .addOnCompleteListener(listener);
+    }
+
+    public static void joinFamilyWithChildCode(String inviteCode, OnCompleteListener<ChildProfile> listener) {
+        long currentTime = System.currentTimeMillis();
+
+        Log.d("FirebaseHelper", "Looking for invite code: " + inviteCode + " at time: " + currentTime);
+
+        db.collection("users")
+                .whereEqualTo("role", "child")
+                .whereEqualTo("inviteCode", inviteCode)
+                .get()
+                .addOnCompleteListener(task -> {
+                    if (task.isSuccessful()) {
+                        Log.d("FirebaseHelper", "Query successful, found " + task.getResult().size() + " matching codes");
+
+                        if (!task.getResult().isEmpty()) {
+                            DocumentSnapshot doc = task.getResult().getDocuments().get(0);
+                            Long expiryTime = doc.getLong("inviteCodeExpiry");
+                            String childName = doc.getString("name");
+
+                            Log.d("FirebaseHelper", "Found code for child: " + childName +
+                                    ", expires at: " + expiryTime + ", current time: " + currentTime);
+
+                            // Check if code is still valid (allow 5 minute buffer for timing issues)
+                            if (expiryTime != null && expiryTime > (currentTime - 5 * 60 * 1000)) {
+                                Log.d("FirebaseHelper", "Code is valid, creating profile");
+
+                                ChildProfile profile = new ChildProfile();
+                                profile.setChildId(doc.getId());
+                                profile.setName(doc.getString("name"));
+                                profile.setFamilyId(doc.getString("familyId"));
+                                profile.setInviteCode(doc.getString("inviteCode"));
+
+                                // Create successful task
+                                com.google.android.gms.tasks.TaskCompletionSource<ChildProfile> taskSource =
+                                        new com.google.android.gms.tasks.TaskCompletionSource<>();
+                                taskSource.setResult(profile);
+                                listener.onComplete(taskSource.getTask());
+                            } else {
+                                Log.d("FirebaseHelper", "Code is expired");
+                                // Create failed task
+                                com.google.android.gms.tasks.TaskCompletionSource<ChildProfile> taskSource =
+                                        new com.google.android.gms.tasks.TaskCompletionSource<>();
+                                taskSource.setException(new Exception("Invite code has expired"));
+                                listener.onComplete(taskSource.getTask());
+                            }
+                        } else {
+                            Log.d("FirebaseHelper", "No matching invite code found");
+                            // Create failed task
+                            com.google.android.gms.tasks.TaskCompletionSource<ChildProfile> taskSource =
+                                    new com.google.android.gms.tasks.TaskCompletionSource<>();
+                            taskSource.setException(new Exception("Invalid invite code"));
+                            listener.onComplete(taskSource.getTask());
+                        }
+                    } else {
+                        Log.e("FirebaseHelper", "Query failed", task.getException());
+                        // Create failed task
+                        com.google.android.gms.tasks.TaskCompletionSource<ChildProfile> taskSource =
+                                new com.google.android.gms.tasks.TaskCompletionSource<>();
+                        taskSource.setException(new Exception("Failed to verify invite code"));
+                        listener.onComplete(taskSource.getTask());
+                    }
+                });
+    }
+
+// ==================== TASK PRESETS MANAGEMENT ====================
+
+    public interface TaskPresetsCallback {
+        void onPresetsLoaded(List<TaskPreset> presets);
+
+        void onError(String error);
+    }
+
+    public interface TaskIconsCallback {
+        void onIconsLoaded(List<TaskIcon> icons);
+
+        void onError(String error);
+    }
+
+    public interface InviteCodeCallback {
+        void onInviteCodeLoaded(String inviteCode, long expiryTime);
+
+        void onError(String error);
+    }
+
+    public static void getTaskPresets(TaskPresetsCallback callback) {
+        db.collection("taskPresets")
+                .orderBy("createdTimestamp", Query.Direction.DESCENDING)
+                .get()
+                .addOnCompleteListener(task -> {
+                    if (task.isSuccessful()) {
+                        List<TaskPreset> presets = new ArrayList<>();
+                        for (DocumentSnapshot doc : task.getResult()) {
+                            TaskPreset preset = documentToTaskPreset(doc);
+                            presets.add(preset);
+                        }
+                        callback.onPresetsLoaded(presets);
+                    } else {
+                        callback.onError("Failed to load task presets");
+                    }
+                });
+    }
+
+    public static void addTaskPreset(TaskPreset preset, OnCompleteListener<DocumentReference> listener) {
+        Map<String, Object> presetData = new HashMap<>();
+        presetData.put("name", preset.getName());
+        presetData.put("iconUrl", preset.getIconUrl());
+        presetData.put("starReward", preset.getStarReward());
+        presetData.put("description", preset.getDescription());
+        presetData.put("createdTimestamp", preset.getCreatedTimestamp());
+
+        db.collection("taskPresets")
+                .add(presetData)
+                .addOnCompleteListener(listener);
+    }
+
+    // ==================== TASK ICONS MANAGEMENT ====================
+
+    public static void getTaskIcons(TaskIconsCallback callback) {
+        db.collection("taskIcons")
+                .orderBy("createdTimestamp", Query.Direction.DESCENDING)
+                .get()
+                .addOnCompleteListener(task -> {
+                    if (task.isSuccessful()) {
+                        List<TaskIcon> icons = new ArrayList<>();
+                        for (DocumentSnapshot doc : task.getResult()) {
+                            TaskIcon icon = documentToTaskIcon(doc);
+                            icons.add(icon);
+                        }
+                        callback.onIconsLoaded(icons);
+                    } else {
+                        callback.onError("Failed to load task icons");
+                    }
+                });
+    }
+
+    public static void addTaskIcon(TaskIcon icon, OnCompleteListener<DocumentReference> listener) {
+        Map<String, Object> iconData = new HashMap<>();
+        iconData.put("name", icon.getName());
+        iconData.put("iconUrl", icon.getIconUrl());
+        iconData.put("category", icon.getCategory());
+        iconData.put("isDefault", icon.isDefault());
+        iconData.put("drawableName", icon.getDrawableName());
+        iconData.put("createdTimestamp", icon.getCreatedTimestamp());
+
+        db.collection("taskIcons")
+                .add(iconData)
+                .addOnCompleteListener(listener);
+    }
+
+    public static void seedDefaultTaskIcons(OnCompleteListener<Void> listener) {
+        // Check if default icons already exist
+        db.collection("taskIcons")
+                .whereEqualTo("isDefault", true)
+                .get()
+                .addOnCompleteListener(task -> {
+                    if (task.isSuccessful() && task.getResult().isEmpty()) {
+                        // No default icons exist, create them
+                        WriteBatch batch = db.batch();
+
+                        List<TaskIcon> defaultIcons = createDefaultTaskIcons();
+                        for (TaskIcon icon : defaultIcons) {
+                            Map<String, Object> iconData = new HashMap<>();
+                            iconData.put("name", icon.getName());
+                            iconData.put("iconUrl", icon.getIconUrl());
+                            iconData.put("category", icon.getCategory());
+                            iconData.put("isDefault", icon.isDefault());
+                            iconData.put("drawableName", icon.getDrawableName());
+                            iconData.put("createdTimestamp", icon.getCreatedTimestamp());
+
+                            DocumentReference docRef = db.collection("taskIcons").document();
+                            batch.set(docRef, iconData);
+                        }
+
+                        batch.commit().addOnCompleteListener(listener);
+                    } else {
+                        // Default icons already exist or error occurred
+                        // Create success task for listener
+                        com.google.android.gms.tasks.Task<Void> successTask = com.google.android.gms.tasks.Tasks.forResult(null);
+                        listener.onComplete(successTask);
+                    }
+                });
+    }
+
+    private static List<TaskIcon> createDefaultTaskIcons() {
+        List<TaskIcon> icons = new ArrayList<>();
+
+        icons.add(createDefaultTaskIcon("Brush Teeth", "personal_care", "ic_brush_teeth"));
+        icons.add(createDefaultTaskIcon("Clean Room", "chores", "ic_clean_room"));
+        icons.add(createDefaultTaskIcon("Do Homework", "education", "ic_homework"));
+        icons.add(createDefaultTaskIcon("Feed Pet", "pets", "ic_pet"));
+        icons.add(createDefaultTaskIcon("Take Shower", "personal_care", "ic_shower"));
+        icons.add(createDefaultTaskIcon("Make Bed", "chores", "ic_bed"));
+        icons.add(createDefaultTaskIcon("Wash Dishes", "chores", "ic_dishes"));
+        icons.add(createDefaultTaskIcon("Exercise", "health", "ic_exercise"));
+
+        return icons;
+    }
+
+    private static TaskIcon createDefaultTaskIcon(String name, String category, String drawableName) {
+        TaskIcon icon = new TaskIcon();
+        icon.setName(name);
+        icon.setIconUrl(""); // Empty for drawable resources
+        icon.setCategory(category);
+        icon.setDefault(true);
+        icon.setDrawableName(drawableName);
+        icon.setCreatedTimestamp(System.currentTimeMillis());
+        return icon;
+    }
+
+    private static TaskPreset documentToTaskPreset(DocumentSnapshot doc) {
+        TaskPreset preset = new TaskPreset();
+        preset.setId(doc.getId());
+        preset.setName(doc.getString("name"));
+        preset.setIconUrl(doc.getString("iconUrl"));
+
+        Long starReward = doc.getLong("starReward");
+        preset.setStarReward(starReward != null ? starReward.intValue() : 1);
+
+        preset.setDescription(doc.getString("description"));
+
+        Long timestamp = doc.getLong("createdTimestamp");
+        preset.setCreatedTimestamp(timestamp != null ? timestamp : 0);
+
+        return preset;
+    }
+
+    private static TaskIcon documentToTaskIcon(DocumentSnapshot doc) {
+        TaskIcon icon = new TaskIcon();
+        icon.setId(doc.getId());
+        icon.setName(doc.getString("name"));
+        icon.setIconUrl(doc.getString("iconUrl"));
+        icon.setCategory(doc.getString("category"));
+        icon.setDrawableName(doc.getString("drawableName"));
+
+        Boolean isDefault = doc.getBoolean("isDefault");
+        icon.setDefault(isDefault != null && isDefault);
+
+        Long timestamp = doc.getLong("createdTimestamp");
+        icon.setCreatedTimestamp(timestamp != null ? timestamp : 0);
+
+        return icon;
+    }
+
+
+
     // ==================== UTILITY METHODS ====================
 
     public static String getCurrentUserId() {
@@ -504,7 +1406,9 @@ public class FirebaseHelper {
         com.chores.app.kids.chores_app_for_kids.models.Task task = new com.chores.app.kids.chores_app_for_kids.models.Task();
         task.setTaskId(doc.getId());
         task.setName(doc.getString("name"));
+        task.setNotes(doc.getString("notes"));
         task.setIconName(doc.getString("iconName"));
+        task.setIconUrl(doc.getString("iconUrl"));
 
         Long starReward = doc.getLong("starReward");
         task.setStarReward(starReward != null ? starReward.intValue() : 0);
@@ -514,8 +1418,41 @@ public class FirebaseHelper {
 
         task.setFamilyId(doc.getString("familyId"));
         task.setCreatedBy(doc.getString("createdBy"));
-        task.setStartDate(doc.getString("startDate"));
+
+        // Handle both old and new date fields for backward compatibility
+        Long startDateTimestamp = doc.getLong("startDateTimestamp");
+        if (startDateTimestamp != null) {
+            task.setStartDateTimestamp(startDateTimestamp);
+        } else {
+            // Fallback to old string field if exists
+            String oldStartDate = doc.getString("startDate");
+            if (oldStartDate != null && !oldStartDate.isEmpty()) {
+                try {
+                    task.setStartDateTimestamp(Long.parseLong(oldStartDate));
+                } catch (NumberFormatException e) {
+                    task.setStartDateTimestamp(System.currentTimeMillis());
+                }
+            } else {
+                task.setStartDateTimestamp(System.currentTimeMillis());
+            }
+        }
+
         task.setRepeatType(doc.getString("repeatType"));
+
+        // Fix: Convert Long values from Firebase to Integer values
+        List<Object> customDaysRaw = (List<Object>) doc.get("customDays");
+        List<Integer> customDays = new ArrayList<>();
+        if (customDaysRaw != null) {
+            for (Object day : customDaysRaw) {
+                if (day instanceof Long) {
+                    customDays.add(((Long) day).intValue());
+                } else if (day instanceof Integer) {
+                    customDays.add((Integer) day);
+                }
+            }
+        }
+        task.setCustomDays(customDays);
+
         task.setReminderTime(doc.getString("reminderTime"));
 
         Boolean photoProof = doc.getBoolean("photoProofRequired");
@@ -534,6 +1471,7 @@ public class FirebaseHelper {
         reward.setRewardId(doc.getId());
         reward.setName(doc.getString("name"));
         reward.setIconName(doc.getString("iconName"));
+        reward.setIconUrl(doc.getString("iconUrl"));
 
         Long starCost = doc.getLong("starCost");
         reward.setStarCost(starCost != null ? starCost.intValue() : 0);
@@ -571,10 +1509,103 @@ public class FirebaseHelper {
         return transaction;
     }
 
+    // ==================== PRE-REWARDS MANAGEMENT ====================
+
+    public static void getPreRewards(PreRewardsCallback callback) {
+        db.collection("preRewards")
+                .get()
+                .addOnCompleteListener(task -> {
+                    if (task.isSuccessful()) {
+                        List<com.chores.app.kids.chores_app_for_kids.models.PreReward> preRewards = new ArrayList<>();
+                        for (DocumentSnapshot doc : task.getResult()) {
+                            com.chores.app.kids.chores_app_for_kids.models.PreReward preReward = documentToPreReward(doc);
+                            preRewards.add(preReward);
+                        }
+                        callback.onPreRewardsLoaded(preRewards);
+                    } else {
+                        callback.onError("Failed to load pre-rewards");
+                    }
+                });
+    }
+
+    private static com.chores.app.kids.chores_app_for_kids.models.PreReward documentToPreReward(DocumentSnapshot doc) {
+        com.chores.app.kids.chores_app_for_kids.models.PreReward preReward = new com.chores.app.kids.chores_app_for_kids.models.PreReward();
+        preReward.setId(doc.getId());
+        preReward.setName(doc.getString("name"));
+        preReward.setIconName(doc.getString("iconName"));
+        preReward.setIconUrl(doc.getString("iconUrl"));
+
+        Long starCost = doc.getLong("starCost");
+        preReward.setStarCost(starCost != null ? starCost.intValue() : 0);
+
+        return preReward;
+    }
+
+    public interface PreRewardsCallback {
+        void onPreRewardsLoaded(List<com.chores.app.kids.chores_app_for_kids.models.PreReward> preRewards);
+
+        void onError(String error);
+    }
+
     // ==================== CALLBACK INTERFACES ====================
 
     public interface StarBalanceCallback {
         void onStarBalanceReceived(int balance);
+    }
+
+    public interface ChildrenInviteCodesCallback {
+        void onInviteCodesLoaded(List<Map<String, Object>> childrenData);
+
+        void onError(String error);
+    }
+
+    public interface ChildProfilesCallback {
+        void onProfilesLoaded(List<ChildProfile> profiles);
+
+        void onError(String error);
+    }
+
+    public static void getUserStarBalanceById(String userId, StarBalanceCallback callback) {
+        db.collection("users")
+                .document(userId)
+                .get()
+                .addOnCompleteListener(task -> {
+                    if (task.isSuccessful() && task.getResult().exists()) {
+                        DocumentSnapshot document = task.getResult();
+                        Long balance = document.getLong("starBalance");
+                        callback.onStarBalanceReceived(balance != null ? balance.intValue() : 0);
+                    } else {
+                        callback.onStarBalanceReceived(0);
+                    }
+                });
+    }
+
+    public static void getUserById(String userId, CurrentUserCallback callback) {
+        db.collection("users").document(userId).get()
+                .addOnCompleteListener(task -> {
+                    if (task.isSuccessful() && task.getResult().exists()) {
+                        DocumentSnapshot doc = task.getResult();
+                        User user = new User();
+                        user.setUserId(doc.getId());
+                        user.setName(doc.getString("name"));
+                        user.setEmail(doc.getString("email"));
+                        user.setRole(doc.getString("role"));
+                        user.setFamilyId(doc.getString("familyId"));
+                        Long balance = doc.getLong("starBalance");
+                        user.setStarBalance(balance != null ? balance.intValue() : 0);
+                        Boolean tts = doc.getBoolean("textToSpeechEnabled");
+                        user.setTextToSpeechEnabled(tts != null && tts);
+                        user.setProfileImageUrl(doc.getString("profileImageUrl"));
+
+                        callback.onUserLoaded(user);
+                    } else {
+                        callback.onError("User not found");
+                    }
+                });
+    }
+
+    public interface TaskCompletionStatsCallback {
+        void onStatsReceived(int completedToday);
     }
 
     public interface CurrentUserCallback {
@@ -654,13 +1685,67 @@ public class FirebaseHelper {
                     }
                 });
     }
-    // Callback interfaces
-    public interface InviteCodeCallback {
-        void onInviteCodeLoaded(String inviteCode, long expiryTime);
-        void onError(String error);
+
+
+    // ==================== TASK COMPLETION STATISTICS ====================
+
+    public static void getTodaysTaskCompletions(String familyId, TaskCompletionStatsCallback callback) {
+        // Get start and end of today
+        Calendar calendar = Calendar.getInstance();
+        calendar.set(Calendar.HOUR_OF_DAY, 0);
+        calendar.set(Calendar.MINUTE, 0);
+        calendar.set(Calendar.SECOND, 0);
+        calendar.set(Calendar.MILLISECOND, 0);
+        long startOfDay = calendar.getTimeInMillis();
+
+        calendar.set(Calendar.HOUR_OF_DAY, 23);
+        calendar.set(Calendar.MINUTE, 59);
+        calendar.set(Calendar.SECOND, 59);
+        calendar.set(Calendar.MILLISECOND, 999);
+        long endOfDay = calendar.getTimeInMillis();
+
+        db.collection("taskCompletions")
+                .whereGreaterThanOrEqualTo("completedAt", startOfDay)
+                .whereLessThan("completedAt", endOfDay)
+                .get()
+                .addOnCompleteListener(task -> {
+                    if (task.isSuccessful() && task.getResult() != null) {
+                        int completedCount = 0;
+
+                        // Get family tasks first to filter completions
+                        getFamilyTasks(familyId, new TasksCallback() {
+                            @Override
+                            public void onTasksLoaded(List<Task> familyTasks) {
+                                int count = 0;
+                                List<String> familyTaskIds = new ArrayList<>();
+                                for (Task familyTask : familyTasks) {
+                                    if (familyTask.getTaskId() != null) {
+                                        familyTaskIds.add(familyTask.getTaskId());
+                                    }
+                                }
+
+                                // Count completions that belong to family tasks
+                                for (com.google.firebase.firestore.DocumentSnapshot doc : task.getResult()) {
+                                    String taskId = doc.getString("taskId");
+                                    if (taskId != null && familyTaskIds.contains(taskId)) {
+                                        count++;
+                                    }
+                                }
+                                callback.onStatsReceived(count);
+                            }
+
+                            @Override
+                            public void onError(String error) {
+                                callback.onStatsReceived(0);
+                            }
+                        });
+                    } else {
+                        callback.onStatsReceived(0);
+                    }
+                });
     }
 
-    // ==================== TASK COMPLETION TRACKING ====================
+// ==================== TASK COMPLETION TRACKING ====================
 
     public static void getTaskCompletionForToday(String userId, String taskId, TaskCompletionCallback callback) {
         String today = getCurrentDateString();
@@ -682,6 +1767,22 @@ public class FirebaseHelper {
 
     public interface TaskCompletionCallback {
         void onCompletionStatusReceived(boolean isCompleted);
+    }
+
+    public interface OnTasksLoadedListener {
+        void onTasksLoaded(List<Task> tasks);
+
+        void onError(String error);
+    }
+
+    public interface OnTaskUpdatedListener {
+        void onTaskUpdated();
+
+        void onError(String error);
+    }
+
+    interface TaskCompletionStatusCallback {
+        void onStatusReceived(boolean isCompleted);
     }
 
     // ==================== REWARD REDEMPTION MANAGEMENT ====================

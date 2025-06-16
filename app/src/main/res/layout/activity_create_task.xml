@@ -3,7 +3,7 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/background_light"
+    android:background="#F5F5F5"
     android:fillViewport="true">
 
     <LinearLayout
@@ -15,29 +15,40 @@
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:background="@color/primary_green"
-            android:padding="24dp"
+            android:background="@android:color/white"
+            android:padding="16dp"
             android:orientation="horizontal"
             android:gravity="center_vertical">
 
             <ImageButton
-                android:id="@+id/btn_back"
+                android:id="@+id/btn_close"
                 android:layout_width="48dp"
                 android:layout_height="48dp"
                 android:background="?attr/selectableItemBackgroundBorderless"
-                android:src="@drawable/ic_arrow_back"
-                app:tint="@android:color/white"
-                android:contentDescription="Back" />
+                android:src="@drawable/ic_close"
+                app:tint="#FF6B35"
+                android:contentDescription="Close" />
 
             <TextView
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:layout_marginStart="16dp"
-                android:text="Create New Task"
-                android:textColor="@android:color/white"
-                android:textSize="24sp"
-                android:textStyle="bold" />
+                android:text="New Task"
+                android:textColor="@android:color/black"
+                android:textSize="20sp"
+                android:textStyle="bold"
+                android:gravity="center" />
+
+            <TextView
+                android:id="@+id/btn_add"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Add"
+                android:textColor="#FF6B35"
+                android:textSize="18sp"
+                android:textStyle="bold"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:padding="8dp" />
 
         </LinearLayout>
 
@@ -47,460 +58,432 @@
             android:orientation="vertical"
             android:padding="20dp">
 
+            <!-- Task Icon Section -->
+            <RelativeLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="24dp"
+                android:gravity="center">
+
+                <androidx.cardview.widget.CardView
+                    android:id="@+id/card_task_icon"
+                    android:layout_width="120dp"
+                    android:layout_height="120dp"
+                    app:cardCornerRadius="60dp"
+                    app:cardElevation="8dp"
+                    app:cardBackgroundColor="@android:color/white">
+
+                    <ImageView
+                        android:id="@+id/iv_task_icon"
+                        android:layout_width="80dp"
+                        android:layout_height="80dp"
+                        android:layout_gravity="center"
+                        android:src="@drawable/ic_task_default"
+                        android:scaleType="centerInside" />
+
+                </androidx.cardview.widget.CardView>
+
+                <androidx.cardview.widget.CardView
+                    android:id="@+id/card_edit_icon"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
+                    android:layout_alignEnd="@id/card_task_icon"
+                    android:layout_alignBottom="@id/card_task_icon"
+                    android:layout_marginEnd="8dp"
+                    android:layout_marginBottom="8dp"
+                    app:cardCornerRadius="18dp"
+                    app:cardElevation="4dp"
+                    app:cardBackgroundColor="#8BC34A">
+
+                    <ImageView
+                        android:layout_width="20dp"
+                        android:layout_height="20dp"
+                        android:layout_gravity="center"
+                        android:src="@drawable/ic_edit"
+                        app:tint="@android:color/white" />
+
+                </androidx.cardview.widget.CardView>
+
+            </RelativeLayout>
+
             <!-- Task Name Section -->
             <androidx.cardview.widget.CardView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginBottom="16dp"
                 app:cardCornerRadius="12dp"
-                app:cardElevation="4dp"
+                app:cardElevation="2dp"
                 app:cardBackgroundColor="@android:color/white">
 
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:padding="20dp">
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginBottom="12dp"
-                        android:text="Task Name"
-                        android:textColor="@color/text_primary"
-                        android:textSize="16sp"
-                        android:textStyle="bold" />
+                    android:orientation="horizontal"
+                    android:padding="16dp"
+                    android:gravity="center_vertical">
 
                     <EditText
                         android:id="@+id/et_task_name"
-                        android:layout_width="match_parent"
-                        android:layout_height="56dp"
-                        android:background="@drawable/edittext_rounded"
-                        android:hint="e.g., Brush teeth, Clean room..."
-                        android:padding="16dp"
-                        android:textSize="16sp"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:background="@null"
+                        android:hint="Task Name"
+                        android:textSize="18sp"
+                        android:textColor="@android:color/black"
+                        android:textColorHint="#CCCCCC"
                         android:inputType="textCapWords" />
 
+                    <TextView
+                        android:id="@+id/tv_use_preset"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Use Preset"
+                        android:textColor="#FF6B35"
+                        android:textSize="14sp"
+                        android:textStyle="bold"
+                        android:background="?attr/selectableItemBackgroundBorderless"
+                        android:padding="8dp"
+                        android:drawableStart="@drawable/ic_preset"
+                        android:drawablePadding="8dp"
+                        app:drawableTint="#FF6B35" />
+
                 </LinearLayout>
 
             </androidx.cardview.widget.CardView>
 
-            <!-- Icon Selection Section -->
+            <!-- Notes Section -->
             <androidx.cardview.widget.CardView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginBottom="16dp"
                 app:cardCornerRadius="12dp"
-                app:cardElevation="4dp"
+                app:cardElevation="2dp"
                 app:cardBackgroundColor="@android:color/white">
 
-                <LinearLayout
+                <EditText
+                    android:id="@+id/et_notes"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:padding="20dp">
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginBottom="12dp"
-                        android:text="Choose Icon"
-                        android:textColor="@color/text_primary"
-                        android:textSize="16sp"
-                        android:textStyle="bold" />
-
-                    <androidx.recyclerview.widget.RecyclerView
-                        android:id="@+id/recycler_view_icons"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:nestedScrollingEnabled="false" />
-
-                </LinearLayout>
+                    android:background="@null"
+                    android:hint="Notes"
+                    android:textSize="16sp"
+                    android:textColor="@android:color/black"
+                    android:textColorHint="#CCCCCC"
+                    android:padding="16dp"
+                    android:minHeight="80dp"
+                    android:gravity="top"
+                    android:inputType="textMultiLine|textCapSentences" />
 
             </androidx.cardview.widget.CardView>
 
-            <!-- Star Reward Section -->
-            <androidx.cardview.widget.CardView
-                android:layout_width="match_parent"
+            <!-- Kids Section -->
+            <TextView
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginBottom="16dp"
-                app:cardCornerRadius="12dp"
-                app:cardElevation="4dp"
-                app:cardBackgroundColor="@android:color/white">
+                android:layout_marginBottom="12dp"
+                android:text="KIDS"
+                android:textColor="#999999"
+                android:textSize="14sp"
+                android:textStyle="bold" />
 
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:padding="20dp">
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginBottom="12dp"
-                        android:text="Star Reward"
-                        android:textColor="@color/text_primary"
-                        android:textSize="16sp"
-                        android:textStyle="bold" />
-
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="horizontal"
-                        android:gravity="center_vertical">
-
-                        <ImageView
-                            android:id="@+id/iv_star_minus"
-                            android:layout_width="48dp"
-                            android:layout_height="48dp"
-                            android:background="@drawable/circle_background"
-                            android:backgroundTint="@color/background_light"
-                            android:src="@drawable/ic_minus"
-                            android:padding="12dp"
-                            app:tint="@color/text_secondary" />
-
-                        <LinearLayout
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:orientation="horizontal"
-                            android:gravity="center">
-
-                            <ImageView
-                                android:layout_width="32dp"
-                                android:layout_height="32dp"
-                                android:layout_marginEnd="8dp"
-                                android:src="@drawable/ic_star"
-                                app:tint="@color/star_yellow" />
-
-                            <TextView
-                                android:id="@+id/tv_star_count"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="1"
-                                android:textSize="24sp"
-                                android:textStyle="bold"
-                                android:textColor="@color/star_yellow" />
-
-                        </LinearLayout>
-
-                        <ImageView
-                            android:id="@+id/iv_star_plus"
-                            android:layout_width="48dp"
-                            android:layout_height="48dp"
-                            android:background="@drawable/circle_background"
-                            android:backgroundTint="@color/primary_green"
-                            android:src="@drawable/ic_plus"
-                            android:padding="12dp"
-                            app:tint="@android:color/white" />
-
-                    </LinearLayout>
-
-                </LinearLayout>
-
-            </androidx.cardview.widget.CardView>
-
-            <!-- Assign to Kids Section -->
-            <androidx.cardview.widget.CardView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginBottom="16dp"
-                app:cardCornerRadius="12dp"
-                app:cardElevation="4dp"
-                app:cardBackgroundColor="@android:color/white">
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:padding="20dp">
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginBottom="12dp"
-                        android:text="Assign to Kids"
-                        android:textColor="@color/text_primary"
-                        android:textSize="16sp"
-                        android:textStyle="bold" />
-
-                    <androidx.recyclerview.widget.RecyclerView
-                        android:id="@+id/recycler_view_kids"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:nestedScrollingEnabled="false" />
-
-                </LinearLayout>
-
-            </androidx.cardview.widget.CardView>
-
-            <!-- Schedule Section -->
-            <androidx.cardview.widget.CardView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginBottom="16dp"
-                app:cardCornerRadius="12dp"
-                app:cardElevation="4dp"
-                app:cardBackgroundColor="@android:color/white">
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:padding="20dp">
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginBottom="12dp"
-                        android:text="Schedule"
-                        android:textColor="@color/text_primary"
-                        android:textSize="16sp"
-                        android:textStyle="bold" />
-
-                    <RadioGroup
-                        android:id="@+id/rg_repeat_type"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="vertical">
-
-                        <RadioButton
-                            android:id="@+id/rb_daily"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="Daily"
-                            android:textSize="16sp"
-                            android:checked="true" />
-
-                        <RadioButton
-                            android:id="@+id/rb_weekly"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="Weekly"
-                            android:textSize="16sp" />
-
-                        <RadioButton
-                            android:id="@+id/rb_weekdays"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="Weekdays only"
-                            android:textSize="16sp" />
-
-                        <RadioButton
-                            android:id="@+id/rb_weekends"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="Weekends only"
-                            android:textSize="16sp" />
-
-                        <RadioButton
-                            android:id="@+id/rb_custom"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="Custom days"
-                            android:textSize="16sp" />
-
-                    </RadioGroup>
-
-                    <!-- Custom weekday selection -->
-                    <LinearLayout
-                        android:id="@+id/layout_weekdays"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="12dp"
-                        android:orientation="horizontal"
-                        android:visibility="gone">
-
-                        <CheckBox
-                            android:id="@+id/cb_monday"
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:text="M"
-                            android:gravity="center" />
-
-                        <CheckBox
-                            android:id="@+id/cb_tuesday"
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:text="T"
-                            android:gravity="center" />
-
-                        <CheckBox
-                            android:id="@+id/cb_wednesday"
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:text="W"
-                            android:gravity="center" />
-
-                        <CheckBox
-                            android:id="@+id/cb_thursday"
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:text="T"
-                            android:gravity="center" />
-
-                        <CheckBox
-                            android:id="@+id/cb_friday"
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:text="F"
-                            android:gravity="center" />
-
-                        <CheckBox
-                            android:id="@+id/cb_saturday"
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:text="S"
-                            android:gravity="center" />
-
-                        <CheckBox
-                            android:id="@+id/cb_sunday"
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:text="S"
-                            android:gravity="center" />
-
-                    </LinearLayout>
-
-                </LinearLayout>
-
-            </androidx.cardview.widget.CardView>
-
-            <!-- Additional Options Section -->
-            <androidx.cardview.widget.CardView
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/recycler_view_kids"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginBottom="24dp"
-                app:cardCornerRadius="12dp"
-                app:cardElevation="4dp"
-                app:cardBackgroundColor="@android:color/white">
+                android:nestedScrollingEnabled="false" />
 
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:padding="20dp">
+            <!-- Stars Per Completion Section -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="12dp"
+                android:text="STARS PER COMPLETION"
+                android:textColor="#999999"
+                android:textSize="14sp"
+                android:textStyle="bold" />
 
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginBottom="16dp"
-                        android:text="Additional Options"
-                        android:textColor="@color/text_primary"
-                        android:textSize="16sp"
-                        android:textStyle="bold" />
-
-                    <!-- Reminder Time -->
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginBottom="16dp"
-                        android:orientation="horizontal"
-                        android:gravity="center_vertical">
-
-                        <ImageView
-                            android:layout_width="24dp"
-                            android:layout_height="24dp"
-                            android:layout_marginEnd="12dp"
-                            android:src="@drawable/ic_alarm"
-                            app:tint="@color/text_secondary" />
-
-                        <TextView
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:text="Reminder Time"
-                            android:textSize="16sp"
-                            android:textColor="@color/text_primary" />
-
-                        <EditText
-                            android:id="@+id/et_reminder_time"
-                            android:layout_width="100dp"
-                            android:layout_height="48dp"
-                            android:background="@drawable/edittext_rounded"
-                            android:gravity="center"
-                            android:hint="08:00"
-                            android:textSize="14sp"
-                            android:inputType="time"
-                            android:focusable="false"
-                            android:clickable="true" />
-
-                    </LinearLayout>
-
-                    <!-- Photo Proof -->
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="horizontal"
-                        android:gravity="center_vertical">
-
-                        <ImageView
-                            android:layout_width="24dp"
-                            android:layout_height="24dp"
-                            android:layout_marginEnd="12dp"
-                            android:src="@drawable/ic_camera"
-                            app:tint="@color/text_secondary" />
-
-                        <TextView
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:text="Require Photo Proof"
-                            android:textSize="16sp"
-                            android:textColor="@color/text_primary" />
-
-                        <Switch
-                            android:id="@+id/switch_photo_proof"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:thumb="@drawable/switch_thumb"
-                            android:track="@drawable/switch_track" />
-
-                    </LinearLayout>
-
-                </LinearLayout>
-
-            </androidx.cardview.widget.CardView>
-
-            <!-- Action Buttons -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"
+                android:gravity="center_vertical"
                 android:layout_marginBottom="24dp">
 
-                <Button
-                    android:id="@+id/btn_cancel"
-                    android:layout_width="0dp"
-                    android:layout_height="56dp"
-                    android:layout_weight="1"
-                    android:layout_marginEnd="8dp"
-                    android:text="Cancel"
-                    android:textSize="16sp"
-                    android:textColor="@color/text_secondary"
-                    android:background="@drawable/button_outlined"
-                    style="?android:attr/borderlessButtonStyle" />
+                <ImageView
+                    android:id="@+id/iv_star_minus"
+                    android:layout_width="48dp"
+                    android:layout_height="48dp"
+                    android:background="@drawable/circle_background"
+                    android:backgroundTint="#E0E0E0"
+                    android:src="@drawable/ic_minus"
+                    android:padding="12dp"
+                    app:tint="#666666" />
 
-                <Button
-                    android:id="@+id/btn_create_task"
+                <LinearLayout
                     android:layout_width="0dp"
-                    android:layout_height="56dp"
-                    android:layout_weight="2"
-                    android:layout_marginStart="8dp"
-                    android:text="Create Task"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="horizontal"
+                    android:gravity="center">
+
+                    <TextView
+                        android:id="@+id/tv_star_count"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="1"
+                        android:textSize="32sp"
+                        android:textStyle="bold"
+                        android:textColor="@android:color/black"
+                        android:layout_marginEnd="8dp" />
+
+                    <ImageView
+                        android:layout_width="32dp"
+                        android:layout_height="32dp"
+                        android:src="@drawable/ic_star"
+                        app:tint="#FFC107" />
+
+                </LinearLayout>
+
+                <ImageView
+                    android:id="@+id/iv_star_plus"
+                    android:layout_width="48dp"
+                    android:layout_height="48dp"
+                    android:background="@drawable/circle_background"
+                    android:backgroundTint="#8BC34A"
+                    android:src="@drawable/ic_plus"
+                    android:padding="12dp"
+                    app:tint="@android:color/white" />
+
+            </LinearLayout>
+
+            <!-- Start Date Section -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:layout_marginBottom="16dp">
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="Start Date"
+                    android:textColor="@android:color/black"
+                    android:textSize="18sp" />
+
+                <TextView
+                    android:id="@+id/tv_start_date"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Today"
+                    android:textColor="#999999"
                     android:textSize="16sp"
-                    android:textStyle="bold"
-                    android:textColor="@android:color/white"
-                    android:background="@drawable/button_rounded"
-                    android:backgroundTint="@color/primary_green"
-                    android:elevation="4dp" />
+                    android:background="@drawable/rounded_button_light"
+                    android:paddingHorizontal="16dp"
+                    android:paddingVertical="8dp" />
+
+            </LinearLayout>
+
+            <!-- Repeat Section -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:layout_marginBottom="16dp">
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="Repeat"
+                    android:textColor="@android:color/black"
+                    android:textSize="18sp" />
+
+                <TextView
+                    android:id="@+id/tv_repeat"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Every Day"
+                    android:textColor="#999999"
+                    android:textSize="16sp"
+                    android:background="@drawable/rounded_button_light"
+                    android:paddingHorizontal="16dp"
+                    android:paddingVertical="8dp"
+                    android:drawableEnd="@drawable/ic_dropdown"
+                    android:drawablePadding="8dp"
+                    app:drawableTint="#999999" />
+
+            </LinearLayout>
+
+            <!-- Custom Days Selection (Initially Hidden) -->
+            <LinearLayout
+                android:id="@+id/layout_custom_days"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginBottom="16dp"
+                android:visibility="gone">
+
+                <TextView
+                    android:id="@+id/btn_sunday"
+                    android:layout_width="0dp"
+                    android:layout_height="48dp"
+                    android:layout_weight="1"
+                    android:text="S"
+                    android:gravity="center"
+                    android:textSize="16sp"
+                    android:textColor="#999999"
+                    android:background="@drawable/day_selector"
+                    android:layout_marginEnd="8dp" />
+
+                <TextView
+                    android:id="@+id/btn_monday"
+                    android:layout_width="0dp"
+                    android:layout_height="48dp"
+                    android:layout_weight="1"
+                    android:text="M"
+                    android:gravity="center"
+                    android:textSize="16sp"
+                    android:textColor="#999999"
+                    android:background="@drawable/day_selector"
+                    android:layout_marginEnd="8dp" />
+
+                <TextView
+                    android:id="@+id/btn_tuesday"
+                    android:layout_width="0dp"
+                    android:layout_height="48dp"
+                    android:layout_weight="1"
+                    android:text="T"
+                    android:gravity="center"
+                    android:textSize="16sp"
+                    android:textColor="#999999"
+                    android:background="@drawable/day_selector"
+                    android:layout_marginEnd="8dp" />
+
+                <TextView
+                    android:id="@+id/btn_wednesday"
+                    android:layout_width="0dp"
+                    android:layout_height="48dp"
+                    android:layout_weight="1"
+                    android:text="W"
+                    android:gravity="center"
+                    android:textSize="16sp"
+                    android:textColor="#999999"
+                    android:background="@drawable/day_selector"
+                    android:layout_marginEnd="8dp" />
+
+                <TextView
+                    android:id="@+id/btn_thursday"
+                    android:layout_width="0dp"
+                    android:layout_height="48dp"
+                    android:layout_weight="1"
+                    android:text="T"
+                    android:gravity="center"
+                    android:textSize="16sp"
+                    android:textColor="#999999"
+                    android:background="@drawable/day_selector"
+                    android:layout_marginEnd="8dp" />
+
+                <TextView
+                    android:id="@+id/btn_friday"
+                    android:layout_width="0dp"
+                    android:layout_height="48dp"
+                    android:layout_weight="1"
+                    android:text="F"
+                    android:gravity="center"
+                    android:textSize="16sp"
+                    android:textColor="#999999"
+                    android:background="@drawable/day_selector"
+                    android:layout_marginEnd="8dp" />
+
+                <TextView
+                    android:id="@+id/btn_saturday"
+                    android:layout_width="0dp"
+                    android:layout_height="48dp"
+                    android:layout_weight="1"
+                    android:text="S"
+                    android:gravity="center"
+                    android:textSize="16sp"
+                    android:textColor="#999999"
+                    android:background="@drawable/day_selector" />
+
+            </LinearLayout>
+
+            <!-- Time Section -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:layout_marginBottom="16dp">
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Time"
+                        android:textColor="@android:color/black"
+                        android:textSize="18sp" />
+
+                    <TextView
+                        android:id="@+id/tv_time_description"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Set a time to remind the kid when it's due"
+                        android:textColor="#999999"
+                        android:textSize="12sp"
+                        android:layout_marginTop="2dp"
+                        android:visibility="gone" />
+
+                    <TextView
+                        android:id="@+id/tv_selected_time"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="3:00 PM"
+                        android:textColor="#FF6B35"
+                        android:textSize="14sp"
+                        android:textStyle="bold"
+                        android:layout_marginTop="4dp"
+                        android:visibility="gone" />
+
+                </LinearLayout>
+
+                <Switch
+                    android:id="@+id/switch_time"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content" />
+
+            </LinearLayout>
+
+            <!-- Photo Proof Section -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:layout_marginBottom="32dp">
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="Photo Proof"
+                    android:textColor="@android:color/black"
+                    android:textSize="18sp" />
+
+                <Switch
+                    android:id="@+id/switch_photo_proof"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content" />
 
             </LinearLayout>
 

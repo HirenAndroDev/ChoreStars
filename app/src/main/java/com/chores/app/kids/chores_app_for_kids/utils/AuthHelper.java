@@ -21,9 +21,12 @@ import com.google.firebase.firestore.QuerySnapshot;
 import com.chores.app.kids.chores_app_for_kids.R;
 import com.chores.app.kids.chores_app_for_kids.models.User;
 import com.chores.app.kids.chores_app_for_kids.models.Family;
+import com.chores.app.kids.chores_app_for_kids.models.ChildProfile;
+import com.chores.app.kids.chores_app_for_kids.models.KidProfile;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 public class AuthHelper {
@@ -291,45 +294,32 @@ public class AuthHelper {
                                         OnCompleteListener<AuthResult> listener) {
         Log.d(TAG, "Creating child user: " + childName + " for family: " + familyId);
 
-        // Create anonymous user for child
-        auth.signInAnonymously()
-                .addOnCompleteListener(task -> {
-                    if (task.isSuccessful()) {
-                        FirebaseUser firebaseUser = auth.getCurrentUser();
-                        String userId = firebaseUser.getUid();
+        // Generate a unique ID for the child (without using Firebase Auth)
+        String childId = "child_" + System.currentTimeMillis() + "_" + java.util.UUID.randomUUID().toString().substring(0, 8);
 
-                        Log.d(TAG, "Anonymous user created: " + userId);
+        // Create user document directly in Firestore
+        Map<String, Object> userData = new HashMap<>();
+        userData.put("name", childName);
+        userData.put("email", "");
+        userData.put("role", "child");
+        userData.put("familyId", familyId);
+        userData.put("starBalance", 0);
+        userData.put("textToSpeechEnabled", true);
+        userData.put("createdAt", System.currentTimeMillis());
+        userData.put("lastLoginAt", System.currentTimeMillis());
+        userData.put("profileImageUrl", "");
+        userData.put("isActive", true);
 
-                        // Create user document
-                        Map<String, Object> userData = new HashMap<>();
-                        userData.put("name", childName);
-                        userData.put("email", "");
-                        userData.put("role", "child");
-                        userData.put("familyId", familyId);
-                        userData.put("starBalance", 0);
-                        userData.put("textToSpeechEnabled", true);
-                        userData.put("createdAt", System.currentTimeMillis());
-                        userData.put("lastLoginAt", System.currentTimeMillis());
-                        userData.put("profileImageUrl", "");
-
-                        db.collection("users").document(userId).set(userData)
-                                .addOnCompleteListener(userTask -> {
-                                    if (userTask.isSuccessful()) {
-                                        Log.d(TAG, "Child user document created");
-                                        // Add child to family
-                                        updateFamilyWithNewChild(familyId, userId, childName, context, listener);
-                                    } else {
-                                        Log.e(TAG, "Failed to create child user", userTask.getException());
-                                        String errorMessage = userTask.getException() != null ?
-                                                userTask.getException().getMessage() : "Failed to create child user";
-                                        AuthResult result = new AuthResult(false, errorMessage, null);
-                                        listener.onComplete(createTaskFromResult(result));
-                                    }
-                                });
+        db.collection("users").document(childId).set(userData)
+                .addOnCompleteListener(userTask -> {
+                    if (userTask.isSuccessful()) {
+                        Log.d(TAG, "Child user document created: " + childId);
+                        // Add child to family and save session
+                        updateFamilyWithNewChild(familyId, childId, childName, context, listener);
                     } else {
-                        Log.e(TAG, "Failed to create anonymous user", task.getException());
-                        String errorMessage = task.getException() != null ?
-                                task.getException().getMessage() : "Failed to create anonymous user";
+                        Log.e(TAG, "Failed to create child user", userTask.getException());
+                        String errorMessage = userTask.getException() != null ?
+                                userTask.getException().getMessage() : "Failed to create child user";
                         AuthResult result = new AuthResult(false, errorMessage, null);
                         listener.onComplete(createTaskFromResult(result));
                     }
@@ -354,7 +344,7 @@ public class AuthHelper {
                                     .addOnCompleteListener(updateTask -> {
                                         if (updateTask.isSuccessful()) {
                                             Log.d(TAG, "Child added to family successfully");
-                                            saveUserSession(context, childName, "child", familyId);
+                                            saveChildSession(context, childId, childName, familyId);
                                             AuthResult result = new AuthResult(true, "Successfully joined family", familyId);
                                             listener.onComplete(createTaskFromResult(result));
                                         } else {
@@ -380,6 +370,47 @@ public class AuthHelper {
                 });
     }
 
+    // Join family with child-specific invite code
+    public static void joinFamilyWithChildCode(String inviteCode, Context context,
+                                               OnCompleteListener<AuthResult> listener) {
+        Log.d(TAG, "Attempting to join family with child code: " + inviteCode);
+
+        FirebaseHelper.joinFamilyWithChildCode(inviteCode, task -> {
+            if (task.isSuccessful()) {
+                ChildProfile childProfile = task.getResult();
+                Log.d(TAG, "Found child profile: " + childProfile.getName());
+
+                // Save child session
+                saveChildSession(context, childProfile.getChildId(), childProfile.getName(), childProfile.getFamilyId());
+
+                AuthResult result = new AuthResult(true, "Successfully joined as " + childProfile.getName(), childProfile.getFamilyId());
+                listener.onComplete(createTaskFromResult(result));
+            } else {
+                Log.d(TAG, "Failed to join with child invite code");
+                Exception exception = task.getException();
+                String errorMessage = "Invalid invite code";
+
+                if (exception != null) {
+                    String exceptionMessage = exception.getMessage();
+                    Log.d(TAG, "Exception message: " + exceptionMessage);
+
+                    if (exceptionMessage != null) {
+                        if (exceptionMessage.contains("expired")) {
+                            errorMessage = "This invite code has expired. Ask your parent for a new one!";
+                        } else if (exceptionMessage.contains("Invalid invite code")) {
+                            errorMessage = "Invite code not found. Double-check the numbers!";
+                        } else {
+                            errorMessage = exceptionMessage;
+                        }
+                    }
+                }
+
+                AuthResult result = new AuthResult(false, errorMessage, null);
+                listener.onComplete(createTaskFromResult(result));
+            }
+        });
+    }
+
     // Helper method to create a Task from AuthResult
     private static Task<AuthResult> createTaskFromResult(AuthResult result) {
         com.google.android.gms.tasks.TaskCompletionSource<AuthResult> taskSource = new com.google.android.gms.tasks.TaskCompletionSource<>();
@@ -402,6 +433,71 @@ public class AuthHelper {
         editor.apply();
     }
 
+    // Enhanced session management for children
+    private static void saveChildSession(Context context, String childId, String userName, String familyId) {
+        Log.d(TAG, "Saving child session - ID: " + childId + ", Name: " + userName + ", Family: " + familyId);
+        SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        SharedPreferences.Editor editor = prefs.edit();
+        editor.putString("child_id", childId);
+        editor.putString(KEY_USER_NAME, userName);
+        editor.putString(KEY_USER_ROLE, "child");
+        editor.putString(KEY_FAMILY_ID, familyId);
+        editor.putBoolean("is_child_account", true);
+        editor.putLong("child_login_time", System.currentTimeMillis());
+        editor.apply();
+
+        // Also save this kid profile to the KidProfileManager for multi-profile support
+        saveKidProfile(context, childId, userName, familyId);
+    }
+
+    // Save kid profile for multi-profile support
+    private static void saveKidProfile(Context context, String childId, String userName, String familyId) {
+        KidProfileManager kidProfileManager = new KidProfileManager(context);
+
+        // Create a KidProfile object
+        KidProfile kidProfile = new KidProfile();
+        kidProfile.setKidId(childId);
+        kidProfile.setName(userName);
+        kidProfile.setFamilyId(familyId);
+        kidProfile.setStarBalance(0); // Will be updated when loaded
+        kidProfile.setSelected(false); // Will be set as selected below
+
+        // Add to saved profiles
+        kidProfileManager.addKidProfile(kidProfile);
+        kidProfileManager.setSelectedKid(childId);
+    }
+
+    // Get all saved kid profiles
+    public static List<KidProfile> getSavedKidProfiles(Context context) {
+        KidProfileManager kidProfileManager = new KidProfileManager(context);
+        return kidProfileManager.getKidProfiles();
+    }
+
+    // Switch to a different kid profile
+    public static void switchToKidProfile(Context context, String kidId) {
+        KidProfileManager kidProfileManager = new KidProfileManager(context);
+        List<KidProfile> profiles = kidProfileManager.getKidProfiles();
+
+        for (KidProfile profile : profiles) {
+            if (profile.getKidId().equals(kidId)) {
+                // Update current session
+                SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+                SharedPreferences.Editor editor = prefs.edit();
+                editor.putString("child_id", profile.getKidId());
+                editor.putString(KEY_USER_NAME, profile.getName());
+                editor.putString(KEY_USER_ROLE, "child");
+                editor.putString(KEY_FAMILY_ID, profile.getFamilyId());
+                editor.putBoolean("is_child_account", true);
+                editor.putLong("child_login_time", System.currentTimeMillis());
+                editor.apply();
+
+                // Set as selected
+                kidProfileManager.setSelectedKid(kidId);
+                break;
+            }
+        }
+    }
+
     public static String getUserRole(Context context) {
         SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
         return prefs.getString(KEY_USER_ROLE, "");
@@ -415,6 +511,54 @@ public class AuthHelper {
     public static String getUserName(Context context) {
         SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
         return prefs.getString(KEY_USER_NAME, "");
+    }
+
+    public static String getChildId(Context context) {
+        SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        return prefs.getString("child_id", "");
+    }
+
+    public static boolean isChildAccount(Context context) {
+        SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        return prefs.getBoolean("is_child_account", false);
+    }
+
+    // Check if a kid is already logged in
+    public static boolean isKidLoggedIn(Context context) {
+        SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        boolean isChildAccount = prefs.getBoolean("is_child_account", false);
+        String childId = prefs.getString("child_id", "");
+        String familyId = prefs.getString(KEY_FAMILY_ID, "");
+
+        return isChildAccount && !childId.isEmpty() && !familyId.isEmpty();
+    }
+
+    // Clear only kid session data
+    public static void clearKidSession(Context context) {
+        Log.d(TAG, "Clearing kid session");
+        SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        SharedPreferences.Editor editor = prefs.edit();
+        editor.remove("child_id");
+        editor.remove("is_child_account");
+        editor.remove("child_login_time");
+        editor.remove(KEY_USER_NAME);
+        editor.remove(KEY_USER_ROLE);
+        editor.remove(KEY_FAMILY_ID);
+        editor.apply();
+
+        // Clear selected kid but keep profiles
+        KidProfileManager kidProfileManager = new KidProfileManager(context);
+        kidProfileManager.clearSelectedKid();
+    }
+
+    // Clear all kid profiles (for complete logout)
+    public static void clearAllKidProfiles(Context context) {
+        Log.d(TAG, "Clearing all kid profiles");
+        clearKidSession(context);
+
+        // Clear all saved profiles
+        KidProfileManager kidProfileManager = new KidProfileManager(context);
+        kidProfileManager.clearAllKidProfiles();
     }
 
     // Sign out
@@ -444,6 +588,16 @@ public class AuthHelper {
     public static String getCurrentUserId() {
         FirebaseUser user = auth.getCurrentUser();
         return user != null ? user.getUid() : null;
+    }
+
+    // Enhanced getCurrentUserId that works for both parents and children  
+    public static String getCurrentUserId(Context context) {
+        if (isChildAccount(context)) {
+            return getChildId(context);
+        } else {
+            FirebaseUser user = auth.getCurrentUser();
+            return user != null ? user.getUid() : null;
+        }
     }
 
     // Custom result class

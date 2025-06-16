@@ -13,10 +13,8 @@
         android:layout_width="48dp"
         android:layout_height="48dp"
         android:background="@drawable/circle_background"
-        android:backgroundTint="@color/primary_green"
-        android:padding="12dp"
-        android:src="@drawable/ic_child"
-        app:tint="@android:color/white" />
+        android:scaleType="centerCrop"
+        android:src="@drawable/ic_child" />
 
     <!-- Member Details -->
     <LinearLayout
@@ -65,6 +63,62 @@
                 android:visibility="gone" />
 
         </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Invite Code : "
+                android:textSize="16sp"
+                android:textStyle="bold"
+                android:textColor="@color/text_primary" />
+
+            <TextView
+                android:id="@+id/tv_Invite_code"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="123456"
+                android:textSize="16sp"
+                android:textStyle="bold"
+                android:textColor="@color/colorPrimary" />
+
+        </LinearLayout>
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Expires : "
+                android:textSize="16sp"
+                android:textStyle="bold"
+                android:textColor="@color/text_primary" />
+
+            <TextView
+                android:id="@+id/tv_Expires_date"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Jun 12"
+                android:textSize="16sp"
+                android:textStyle="bold"
+                android:textColor="@color/error_red" />
+
+        </LinearLayout>
+
+        <Button
+            android:id="@+id/btn_generate_code"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Generate code"
+            android:textColor="@android:color/white"
+            android:background="@drawable/button_rounded"
+            android:layout_margin="@dimen/spacing_medium" />
+
 
     </LinearLayout>
 

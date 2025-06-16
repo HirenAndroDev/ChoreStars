@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:gravity="center_vertical"
+    android:background="@drawable/bg_kid_profile_item"
+    android:padding="16dp"
+    android:layout_marginVertical="4dp"
+    android:clickable="true"
+    android:focusable="true"
+    android:foreground="?attr/selectableItemBackground">
+
+    <de.hdodenhof.circleimageview.CircleImageView
+        android:id="@+id/iv_kid_avatar"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:src="@drawable/default_avatar"
+        app:civ_border_width="2dp"
+        app:civ_border_color="@color/success_green" />
+
+    <TextView
+        android:id="@+id/tv_kid_name"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:layout_marginStart="16dp"
+        android:text="Kid Name"
+        android:textSize="16sp"
+        android:textStyle="bold"
+        android:textColor="@color/text_primary" />
+
+    <ImageView
+        android:id="@+id/iv_selected_indicator"
+        android:layout_width="24dp"
+        android:layout_height="24dp"
+        android:src="@drawable/ic_check_circle"
+        android:visibility="invisible"
+        app:tint="@color/success_green" />
+
+</LinearLayout>

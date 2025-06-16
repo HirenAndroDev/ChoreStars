@@ -11,6 +11,8 @@ public class User {
     private String profileImageUrl;
     private boolean textToSpeechEnabled;
     private int starBalance;
+    private String inviteCode;
+    private Long inviteCodeExpires;
 
     public User() {
         // Empty constructor required for Firestore
@@ -50,5 +52,20 @@ public class User {
 
     public int getStarBalance() { return starBalance; }
     public void setStarBalance(int starBalance) { this.starBalance = starBalance; }
-}
 
+    public String getInviteCode() {
+        return inviteCode;
+    }
+
+    public void setInviteCode(String inviteCode) {
+        this.inviteCode = inviteCode;
+    }
+
+    public Long getInviteCodeExpires() {
+        return inviteCodeExpires;
+    }
+
+    public void setInviteCodeExpires(Long inviteCodeExpires) {
+        this.inviteCodeExpires = inviteCodeExpires;
+    }
+}

@@ -168,18 +168,32 @@ public class KidLoginActivity extends AppCompatActivity {
         btnJoin.setEnabled(false);
         btnJoin.setText("Joining...");
 
-        // Attempt to join family
-        AuthHelper.joinFamilyWithCode(inviteCode, childName, this, task -> {
+        // Attempt to join family with child-specific code
+        AuthHelper.joinFamilyWithChildCode(inviteCode, this, task -> {
+            btnJoin.setEnabled(true);
+            btnJoin.setText("JOIN FAMILY");
+
             if (task.isSuccessful()) {
-                AuthHelper.AuthResult result = task.getResult();
-                // Navigate to kid dashboard
-                Intent intent = new Intent(this, KidDashboardActivity.class);
-                startActivity(intent);
+                // Play success sound and show celebration
+                SoundHelper.playSuccessSound(this);
+                showSuccessAnimation();
+
+                // Navigate to kid dashboard after a short delay
+                postDelayed(() -> {
+                    Intent intent = new Intent(this, KidDashboardActivity.class);
+                    intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+                    startActivity(intent);
+                    finish();
+                }, 2000);
             } else {
                 // Show error message
-                Toast.makeText(this, "Failed to join family: " + task.getException().getMessage(), Toast.LENGTH_SHORT).show();
+                String errorMessage = getErrorMessage(task.getException());
+                Toast.makeText(this, errorMessage, Toast.LENGTH_LONG).show();
+                SoundHelper.playErrorSound(this);
+                shakeView(etInviteCode);
             }
-        });    }
+        });
+    }
 
     private void showSuccessAnimation() {
         // Create celebration animation

@@ -431,4 +431,12 @@ public class AddKidProfileActivity extends AppCompatActivity {
         btnSaveKid.setEnabled(true);
         btnSaveKid.setText("Save Kid Profile");
     }
+
+    private void navigateBackToParent() {
+        // Set result to indicate success
+        setResult(RESULT_OK);
+
+        // Finish this activity and return to the calling activity
+        finish();
+    }
 }

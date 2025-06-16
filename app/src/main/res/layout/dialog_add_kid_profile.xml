@@ -1,0 +1,162 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="@drawable/bg_dialog_rounded"
+    android:padding="24dp">
+
+    <!-- Header -->
+    <RelativeLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="16dp">
+
+        <ImageView
+            android:id="@+id/iv_back_arrow"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:layout_alignParentStart="true"
+            android:layout_centerVertical="true"
+            android:src="@drawable/ic_arrow_back"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:padding="4dp"
+            app:tint="@color/orange" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_centerInParent="true"
+            android:text="Enter Invite Code"
+            android:textSize="20sp"
+            android:textStyle="bold"
+            android:textColor="@color/text_primary" />
+
+    </RelativeLayout>
+
+    <!-- Subtitle -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="32dp"
+        android:text="In case you have no code or it's expired, please request a new code from your parent."
+        android:textSize="14sp"
+        android:textColor="@color/text_secondary"
+        android:lineSpacingMultiplier="1.2" />
+
+    <!-- Invite Code Input -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center"
+        android:weightSum="6"
+        android:layout_marginBottom="40dp">
+
+        <EditText
+            android:id="@+id/et_digit_1"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="54dp"
+            android:layout_marginEnd="12dp"
+            android:background="@drawable/bg_invite_code_input"
+            android:gravity="center"
+            android:inputType="number"
+            android:maxLength="1"
+            android:textSize="28sp"
+            android:textStyle="bold"
+            android:textColor="@color/text_primary"
+            android:selectAllOnFocus="true" />
+
+        <EditText
+            android:id="@+id/et_digit_2"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="54dp"
+            android:layout_marginEnd="12dp"
+            android:background="@drawable/bg_invite_code_input"
+            android:gravity="center"
+            android:inputType="number"
+            android:maxLength="1"
+            android:textSize="28sp"
+            android:textStyle="bold"
+            android:textColor="@color/text_primary"
+            android:selectAllOnFocus="true" />
+
+        <EditText
+            android:id="@+id/et_digit_3"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="54dp"
+            android:layout_marginEnd="12dp"
+            android:background="@drawable/bg_invite_code_input"
+            android:gravity="center"
+            android:inputType="number"
+            android:maxLength="1"
+            android:textSize="28sp"
+            android:textStyle="bold"
+            android:textColor="@color/text_primary"
+            android:selectAllOnFocus="true" />
+
+        <EditText
+            android:id="@+id/et_digit_4"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="54dp"
+            android:layout_marginEnd="12dp"
+            android:background="@drawable/bg_invite_code_input"
+            android:gravity="center"
+            android:inputType="number"
+            android:maxLength="1"
+            android:textSize="28sp"
+            android:textStyle="bold"
+            android:textColor="@color/text_primary"
+            android:selectAllOnFocus="true" />
+
+        <EditText
+            android:id="@+id/et_digit_5"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="54dp"
+            android:layout_marginEnd="12dp"
+            android:background="@drawable/bg_invite_code_input"
+            android:gravity="center"
+            android:inputType="number"
+            android:maxLength="1"
+            android:textSize="28sp"
+            android:textStyle="bold"
+            android:textColor="@color/text_primary"
+            android:selectAllOnFocus="true" />
+
+        <EditText
+            android:id="@+id/et_digit_6"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="54dp"
+            android:background="@drawable/bg_invite_code_input"
+            android:gravity="center"
+            android:inputType="number"
+            android:maxLength="1"
+            android:textSize="28sp"
+            android:textStyle="bold"
+            android:textColor="@color/text_primary"
+            android:selectAllOnFocus="true" />
+
+    </LinearLayout>
+
+    <!-- Join Button -->
+    <Button
+        android:id="@+id/btn_join"
+        android:layout_width="200dp"
+        android:layout_height="56dp"
+        android:layout_gravity="center"
+        android:text="JOIN"
+        android:textSize="18sp"
+        android:textStyle="bold"
+        android:textColor="@android:color/white"
+        android:background="@drawable/button_rounded"
+        android:backgroundTint="@color/success_green"
+        android:elevation="6dp" />
+
+</LinearLayout>

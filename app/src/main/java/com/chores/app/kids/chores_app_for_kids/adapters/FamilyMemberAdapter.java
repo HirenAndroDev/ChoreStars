@@ -1,20 +1,35 @@
 package com.chores.app.kids.chores_app_for_kids.adapters;
 
-
 import android.content.Context;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.Button;
 import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.PopupMenu;
 import android.widget.TextView;
+import android.widget.Toast;
 import androidx.annotation.NonNull;
 import androidx.core.content.ContextCompat;
 import androidx.recyclerview.widget.RecyclerView;
+
+import com.bumptech.glide.Glide;
+import com.bumptech.glide.load.DataSource;
+import com.bumptech.glide.load.engine.DiskCacheStrategy;
+import com.bumptech.glide.load.engine.GlideException;
+import com.bumptech.glide.request.RequestListener;
+import com.bumptech.glide.request.RequestOptions;
+import com.bumptech.glide.request.target.Target;
 import com.chores.app.kids.chores_app_for_kids.R;
 import com.chores.app.kids.chores_app_for_kids.models.User;
 import com.chores.app.kids.chores_app_for_kids.utils.AuthHelper;
+import com.chores.app.kids.chores_app_for_kids.utils.FirebaseHelper;
+
+import androidx.annotation.Nullable;
+
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -31,6 +46,8 @@ public class FamilyMemberAdapter extends RecyclerView.Adapter<FamilyMemberAdapte
         void onRemoveMember(User member);
         void onViewMemberStats(User member);
         void onManagePermissions(User member);
+
+        void onGenerateInviteCode(User member);
     }
 
     public FamilyMemberAdapter(List<User> memberList, Context context) {
@@ -54,6 +71,8 @@ public class FamilyMemberAdapter extends RecyclerView.Adapter<FamilyMemberAdapte
     public void onBindViewHolder(@NonNull FamilyMemberViewHolder holder, int position) {
         User member = memberList.get(position);
 
+        Log.d("FamilyMemberAdapter", "onBindViewHolder: position=" + position + ", member=" + member.getName() + " (" + member.getRole() + ")");
+
         // Set member name
         holder.tvMemberName.setText(member.getName());
 
@@ -69,19 +88,52 @@ public class FamilyMemberAdapter extends RecyclerView.Adapter<FamilyMemberAdapte
         // Set up action menu
         setupActionMenu(holder, member);
 
-        // Handle item click
-        holder.itemView.setOnClickListener(v -> {
-            if (listener != null) {
-                listener.onViewMemberDetails(member);
-            }
-        });
-
         // Highlight current user
         if (member.getUserId().equals(currentUserId)) {
             holder.itemView.setBackgroundColor(ContextCompat.getColor(context, R.color.light_yellow));
         } else {
             holder.itemView.setBackgroundColor(android.graphics.Color.TRANSPARENT);
         }
+
+        // Handle invite code display and generation for children only
+        if ("child".equals(member.getRole())) {
+            // For children, show invite code section
+            holder.tvInviteCode.setVisibility(View.VISIBLE);
+            holder.tvExpiresDate.setVisibility(View.VISIBLE);
+            holder.btnGenerateCode.setVisibility(View.VISIBLE);
+
+            // Load invite code data for this child
+            loadInviteCodeForChild(holder, member);
+        } else {
+            // For parents, hide invite code section
+            holder.tvInviteCode.setVisibility(View.GONE);
+            holder.tvExpiresDate.setVisibility(View.GONE);
+            holder.btnGenerateCode.setVisibility(View.GONE);
+        }
+    }
+
+    private void loadInviteCodeForChild(FamilyMemberViewHolder holder, User member) {
+        // This is a placeholder implementation. You would need to implement actual
+        // Firebase loading logic here to get the invite code data for the child.
+        // Example:
+        // FirebaseHelper.getInviteCodeForChild(member.getUserId(), (inviteCode, expires) -> {
+        //     holder.tvInviteCode.setText(inviteCode != null ? inviteCode : "No code generated");
+        //     holder.tvExpiresDate.setText(expires != null ? "Expires: " + formatDate(expires) : "Never");
+        // });
+
+        // For now, just display the code from the model (if available)
+        holder.tvInviteCode.setText(member.getInviteCode() != null ? member.getInviteCode() : "No code generated");
+        holder.tvExpiresDate.setText(member.getInviteCodeExpires() != null ? "Expires: " + formatDate(member.getInviteCodeExpires()) : "Never");
+        holder.btnGenerateCode.setOnClickListener(v -> {
+            if (listener != null) {
+                listener.onGenerateInviteCode(member);
+            }
+        });
+    }
+
+    private String formatDate(long timestamp) {
+        SimpleDateFormat sdf = new SimpleDateFormat("MM/dd/yyyy");
+        return sdf.format(new java.util.Date(timestamp));
     }
 
     private void setupRoleDisplay(FamilyMemberViewHolder holder, User member) {
@@ -102,16 +154,57 @@ public class FamilyMemberAdapter extends RecyclerView.Adapter<FamilyMemberAdapte
     }
 
     private void setupProfileImage(FamilyMemberViewHolder holder, User member, int position) {
+        // Clear any previous styling
+        holder.ivProfileImage.setPadding(0, 0, 0, 0);
+        holder.ivProfileImage.setBackgroundTintList(null);
+
         if (member.getProfileImageUrl() != null && !member.getProfileImageUrl().isEmpty()) {
-            // Load actual profile image using Glide or similar
-            // Glide.with(context).load(member.getProfileImageUrl()).into(holder.ivProfileImage);
-            setDefaultAvatar(holder, member, position);
+            Log.d("FamilyMemberAdapter", "Loading profile image for " + member.getName() + ": " + member.getProfileImageUrl());
+
+            Glide.with(context)
+                    .load(member.getProfileImageUrl())
+                    .apply(new RequestOptions()
+                            .placeholder(R.drawable.circle_background)
+                            .error(R.drawable.circle_background)
+                            .diskCacheStrategy(DiskCacheStrategy.ALL)
+                            .override(48, 48)
+                            .circleCrop()) // This will make the image circular
+                    .listener(new RequestListener<android.graphics.drawable.Drawable>() {
+                        @Override
+                        public boolean onLoadFailed(@Nullable GlideException e, Object model, Target<android.graphics.drawable.Drawable> target, boolean isFirstResource) {
+                            Log.e("FamilyMemberAdapter", "Failed to load image for " + member.getName(), e);
+                            // Set default avatar on failure
+                            holder.ivProfileImage.post(() -> setDefaultAvatar(holder, member, position));
+                            return true; // Return true to prevent Glide from setting error drawable
+                        }
+
+                        @Override
+                        public boolean onResourceReady(android.graphics.drawable.Drawable resource, Object model, Target<android.graphics.drawable.Drawable> target, DataSource dataSource, boolean isFirstResource) {
+                            Log.d("FamilyMemberAdapter", "Successfully loaded image for " + member.getName());
+                            return false; // Let Glide handle the image setting
+                        }
+                    })
+                    .into(holder.ivProfileImage);
         } else {
+            Log.d("FamilyMemberAdapter", "Using default avatar for " + member.getName());
             setDefaultAvatar(holder, member, position);
+        }
+    }
+    private android.graphics.drawable.Drawable getDefaultAvatarDrawable(User member, int position) {
+        if ("parent".equals(member.getRole())) {
+            return ContextCompat.getDrawable(context, R.drawable.ic_parent);
+        } else {
+            return ContextCompat.getDrawable(context, R.drawable.ic_child);
         }
     }
 
     private void setDefaultAvatar(FamilyMemberViewHolder holder, User member, int position) {
+        // Clear any existing image first
+        holder.ivProfileImage.setImageDrawable(null);
+
+        // Set padding for icon display
+        holder.ivProfileImage.setPadding(12, 12, 12, 12);
+
         // Use different icons and colors for parents vs children
         if ("parent".equals(member.getRole())) {
             holder.ivProfileImage.setImageResource(R.drawable.ic_parent);
@@ -135,7 +228,6 @@ public class FamilyMemberAdapter extends RecyclerView.Adapter<FamilyMemberAdapte
             );
         }
     }
-
     private void setupStarBalance(FamilyMemberViewHolder holder, User member) {
         if ("child".equals(member.getRole())) {
             holder.tvStarBalance.setVisibility(View.VISIBLE);
@@ -202,7 +294,9 @@ public class FamilyMemberAdapter extends RecyclerView.Adapter<FamilyMemberAdapte
 
     @Override
     public int getItemCount() {
-        return memberList.size();
+        int count = memberList.size();
+        Log.d("FamilyMemberAdapter", "getItemCount: " + count);
+        return count;
     }
 
     // Public methods for data management
@@ -296,6 +390,7 @@ public class FamilyMemberAdapter extends RecyclerView.Adapter<FamilyMemberAdapte
                 return m1.getName().compareToIgnoreCase(m2.getName());
             }
         });
+
         notifyDataSetChanged();
     }
 
@@ -304,6 +399,9 @@ public class FamilyMemberAdapter extends RecyclerView.Adapter<FamilyMemberAdapte
         TextView tvMemberName;
         TextView tvMemberRole;
         TextView tvStarBalance;
+        TextView tvInviteCode;
+        TextView tvExpiresDate;
+        Button btnGenerateCode;
         ImageButton btnMemberOptions;
 
         public FamilyMemberViewHolder(@NonNull View itemView) {
@@ -312,6 +410,9 @@ public class FamilyMemberAdapter extends RecyclerView.Adapter<FamilyMemberAdapte
             tvMemberName = itemView.findViewById(R.id.tv_member_name);
             tvMemberRole = itemView.findViewById(R.id.tv_member_role);
             tvStarBalance = itemView.findViewById(R.id.tv_star_balance);
+            tvInviteCode = itemView.findViewById(R.id.tv_Invite_code);
+            tvExpiresDate = itemView.findViewById(R.id.tv_Expires_date);
+            btnGenerateCode = itemView.findViewById(R.id.btn_generate_code);
             btnMemberOptions = itemView.findViewById(R.id.btn_member_options);
         }
     }

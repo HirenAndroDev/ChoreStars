@@ -27,12 +27,8 @@ import com.chores.app.kids.chores_app_for_kids.utils.TextToSpeechHelper;
 import java.util.Calendar;
 import java.util.Locale;
 
-public class KidDashboardActivity extends AppCompatActivity implements TextToSpeech.OnInitListener {
+public class KidDashboardActivity extends AppCompatActivity  {
 
-    private TextView tvGreeting;
-    private TextView tvChildName;
-    private TextView tvStarBalance;
-    private ImageView ivStarIcon;
     private BottomNavigationView bottomNavigation;
     private FragmentManager fragmentManager;
 
@@ -54,7 +50,6 @@ public class KidDashboardActivity extends AppCompatActivity implements TextToSpe
 
         initializeViews();
         setupBottomNavigation();
-        setupTextToSpeech();
         loadUserData();
 
         // Show default fragment (Tasks)
@@ -63,20 +58,14 @@ public class KidDashboardActivity extends AppCompatActivity implements TextToSpe
         }
 
         // Welcome the child
-        showWelcomeMessage();
     }
 
     private void initializeViews() {
-        tvGreeting = findViewById(R.id.tv_greeting);
-        tvChildName = findViewById(R.id.tv_child_name);
-        tvStarBalance = findViewById(R.id.tv_star_balance);
-        ivStarIcon = findViewById(R.id.iv_star_icon);
         bottomNavigation = findViewById(R.id.bottom_navigation_kid);
         fragmentManager = getSupportFragmentManager();
 
         // Set child name
         if (childName != null) {
-            tvChildName.setText(childName);
         }
 
         // Set greeting based on time of day
@@ -96,7 +85,6 @@ public class KidDashboardActivity extends AppCompatActivity implements TextToSpe
             greeting = "Good Evening";
         }
 
-        tvGreeting.setText(greeting + "!");
     }
 
     private void setupBottomNavigation() {
@@ -108,11 +96,9 @@ public class KidDashboardActivity extends AppCompatActivity implements TextToSpe
             if (itemId == R.id.nav_kid_tasks) {
                 selectedFragment = new KidTasksFragment();
                 fragmentTag = "tasks";
-                announceIfEnabled("Tasks page");
             } else if (itemId == R.id.nav_kid_rewards) {
                 selectedFragment = new KidRewardsFragment();
                 fragmentTag = "rewards";
-                announceIfEnabled("Rewards page");
             }
 
             if (selectedFragment != null) {
@@ -124,34 +110,44 @@ public class KidDashboardActivity extends AppCompatActivity implements TextToSpe
         });
     }
 
-    private void setupTextToSpeech() {
-        ttsHelper = new TextToSpeechHelper(this, this);
-    }
 
     private void loadUserData() {
-        // Load star balance
-        FirebaseHelper.getUserStarBalance(balance -> {
-            runOnUiThread(() -> {
-                updateStarBalance(balance);
+        // Get the child ID from session
+        String childId = AuthHelper.getChildId(this);
+
+        if (childId != null && !childId.isEmpty()) {
+            // Load star balance for this specific child
+            FirebaseHelper.getUserStarBalanceById(childId, balance -> {
+                runOnUiThread(() -> {
+                    updateStarBalance(balance);
+                });
             });
-        });
 
-        // Load user preferences
-        FirebaseHelper.getCurrentUser(new FirebaseHelper.CurrentUserCallback() {
-            @Override
-            public void onUserLoaded(User user) {
-                isTextToSpeechEnabled = user.isTextToSpeechEnabled();
-                if (childName == null || childName.isEmpty()) {
-                    childName = user.getName();
-                    tvChildName.setText(childName);
+            // Load child user data
+            FirebaseHelper.getUserById(childId, new FirebaseHelper.CurrentUserCallback() {
+                @Override
+                public void onUserLoaded(User user) {
+                    runOnUiThread(() -> {
+                        isTextToSpeechEnabled = user.isTextToSpeechEnabled();
+                        if (childName == null || childName.isEmpty()) {
+                            childName = user.getName();
+                        }
+                    });
                 }
-            }
 
-            @Override
-            public void onError(String error) {
-                // Handle error silently for kid interface
-            }
-        });
+                @Override
+                public void onError(String error) {
+                    // Handle error silently for kid interface
+                }
+            });
+        } else {
+            // Fallback to generic method if no child ID
+            FirebaseHelper.getUserStarBalance(balance -> {
+                runOnUiThread(() -> {
+                    updateStarBalance(balance);
+                });
+            });
+        }
     }
 
     private void loadFragment(Fragment fragment) {
@@ -164,79 +160,18 @@ public class KidDashboardActivity extends AppCompatActivity implements TextToSpe
         int previousBalance = currentStarBalance;
         currentStarBalance = newBalance;
 
-        tvStarBalance.setText(String.valueOf(newBalance));
 
         // Animate star icon if balance increased
         if (newBalance > previousBalance) {
-            animateStarIncrease(newBalance - previousBalance);
         }
     }
 
-    private void animateStarIncrease(int starsEarned) {
-        // Scale animation for star icon
-        ObjectAnimator scaleX = ObjectAnimator.ofFloat(ivStarIcon, "scaleX", 1f, 1.5f, 1f);
-        ObjectAnimator scaleY = ObjectAnimator.ofFloat(ivStarIcon, "scaleY", 1f, 1.5f, 1f);
-        scaleX.setDuration(600);
-        scaleY.setDuration(600);
-        scaleX.start();
-        scaleY.start();
 
-        // Rotation animation
-        ObjectAnimator rotation = ObjectAnimator.ofFloat(ivStarIcon, "rotation", 0f, 360f);
-        rotation.setDuration(800);
-        rotation.start();
 
-        // Play sound
-        SoundHelper.playStarEarnedSound(this);
 
-        // Announce star gain
-        announceIfEnabled(String.format("You earned %d stars! You now have %d stars total!",
-                starsEarned, currentStarBalance));
-    }
-
-    private void showWelcomeMessage() {
-        if (childName != null && !childName.isEmpty()) {
-            String welcomeMessage = String.format("Welcome back, %s! Ready for some fun tasks?", childName);
-            announceIfEnabled(welcomeMessage);
-        }
-    }
-
-    public void announceTaskCompletion(String taskName, int starsEarned) {
-        String message = String.format("Great job completing %s! You earned %d stars!", taskName, starsEarned);
-        announceIfEnabled(message);
-        SoundHelper.playCelebrationSound(this);
-    }
-
-    public void announceRewardRedemption(String rewardName, int starsSpent) {
-        String message = String.format("Awesome! You redeemed %s for %d stars!", rewardName, starsSpent);
-        announceIfEnabled(message);
-        SoundHelper.playRewardSound(this);
-    }
-
-    public void announceInsufficientStars(int needed) {
-        String message = String.format("You need %d more stars for this reward. Keep completing tasks!", needed);
-        announceIfEnabled(message);
-        SoundHelper.playErrorSound(this);
-    }
-
-    public void announceIfEnabled(String message) {
-        if (isTextToSpeechEnabled && ttsHelper != null) {
-            ttsHelper.speak(message);
-        }
-    }
-
-    @Override
-    public void onInit(int status) {
-        if (status == TextToSpeech.SUCCESS) {
-            if (ttsHelper != null) {
-                ttsHelper.setLanguage(Locale.getDefault());
-            }
-        }
-    }
 
     public void onTaskCompleted(Task task) {
         // Handle task completion from fragments
-        announceTaskCompletion(task.getName(), task.getStarReward());
 
         // Update star balance
         int newBalance = currentStarBalance + task.getStarReward();
@@ -248,7 +183,6 @@ public class KidDashboardActivity extends AppCompatActivity implements TextToSpe
 
     public void onRewardRedeemed(Reward reward) {
         // Handle reward redemption from fragments
-        announceRewardRedemption(reward.getName(), reward.getStarCost());
 
         // Update star balance
         int newBalance = currentStarBalance - reward.getStarCost();
@@ -273,7 +207,7 @@ public class KidDashboardActivity extends AppCompatActivity implements TextToSpe
         isTextToSpeechEnabled = !isTextToSpeechEnabled;
 
         // Update in Firebase
-        String userId = AuthHelper.getCurrentUserId();
+        String userId = AuthHelper.getCurrentUserId(this);
         if (userId != null) {
             FirebaseHelper.updateTextToSpeechSetting(userId, isTextToSpeechEnabled, task -> {
                 // Handle result silently
@@ -283,7 +217,6 @@ public class KidDashboardActivity extends AppCompatActivity implements TextToSpe
         // Announce the change
         String message = isTextToSpeechEnabled ? "Text to speech turned on" : "Text to speech turned off";
         if (isTextToSpeechEnabled) {
-            announceIfEnabled(message);
         }
     }
 

@@ -1,0 +1,169 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.cardview.widget.CardView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    app:cardCornerRadius="20dp"
+    app:cardElevation="8dp"
+    app:cardBackgroundColor="@android:color/white">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="24dp">
+
+        <!-- Header with Star Reward and Close Button -->
+        <RelativeLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="20dp">
+
+            <!-- Close Button -->
+            <ImageView
+                android:id="@+id/iv_close_dialog"
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:src="@drawable/ic_close"
+                android:layout_alignParentStart="true"
+                android:padding="4dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                app:tint="@color/text_secondary" />
+
+            <!-- Star Reward -->
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:layout_alignParentEnd="true"
+                android:background="@drawable/bg_star_badge"
+                android:paddingHorizontal="12dp"
+                android:paddingVertical="6dp">
+
+                <TextView
+                    android:id="@+id/tv_dialog_star_reward"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="1"
+                    android:textSize="18sp"
+                    android:textStyle="bold"
+                    android:textColor="@color/star_orange" />
+
+                <ImageView
+                    android:layout_width="20dp"
+                    android:layout_height="20dp"
+                    android:src="@drawable/ic_star_filled"
+                    android:layout_marginStart="4dp"
+                    app:tint="@color/star_orange" />
+
+            </LinearLayout>
+
+        </RelativeLayout>
+
+        <!-- Task Icon with Background -->
+        <FrameLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center_horizontal"
+            android:layout_marginBottom="24dp">
+
+            <View
+                android:layout_width="100dp"
+                android:layout_height="100dp"
+                android:background="@drawable/bg_task_icon_gradient" />
+
+            <ImageView
+                android:id="@+id/iv_dialog_task_icon"
+                android:layout_width="100dp"
+                android:layout_height="100dp"
+                android:src="@drawable/ic_task_default"
+                android:padding="24dp"
+                android:scaleType="fitCenter" />
+
+        </FrameLayout>
+
+        <!-- Task Name -->
+        <TextView
+            android:id="@+id/tv_dialog_task_name"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Make the bed"
+            android:textSize="24sp"
+            android:textStyle="bold"
+            android:textColor="@color/text_primary"
+            android:gravity="center"
+            android:layout_marginBottom="16dp" />
+
+        <!-- Divider -->
+        <View
+            android:layout_width="60dp"
+            android:layout_height="2dp"
+            android:background="#E0E0E0"
+            android:layout_gravity="center"
+            android:layout_marginBottom="16dp" />
+
+        <!-- Task Notes -->
+        <TextView
+            android:id="@+id/tv_dialog_task_notes"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Make Proper Bed"
+            android:textSize="16sp"
+            android:textColor="@color/text_secondary"
+            android:gravity="center"
+            android:lineSpacingMultiplier="1.2"
+            android:layout_marginBottom="16dp"
+            android:visibility="gone" />
+
+        <!-- Reminder Time -->
+        <LinearLayout
+            android:id="@+id/layout_dialog_reminder_time"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_gravity="center"
+            android:background="@drawable/bg_reminder_chip"
+            android:paddingHorizontal="16dp"
+            android:paddingVertical="8dp"
+            android:layout_marginBottom="24dp"
+            android:visibility="gone">
+
+            <ImageView
+                android:layout_width="18dp"
+                android:layout_height="18dp"
+                android:src="@drawable/ic_clock"
+                app:tint="@color/colorPrimary" />
+
+            <TextView
+                android:id="@+id/tv_dialog_reminder_time"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="6:00 PM"
+                android:textSize="14sp"
+                android:textColor="@color/colorPrimary"
+                android:layout_marginStart="6dp" />
+
+        </LinearLayout>
+
+        <!-- Complete/Incomplete Button -->
+        <androidx.appcompat.widget.AppCompatButton
+            android:id="@+id/btn_dialog_action"
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:text="Mark as Complete"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:textColor="@android:color/white"
+            android:background="@drawable/bg_button_complete"
+            android:drawableStart="@drawable/ic_checkbox_checked"
+            android:drawablePadding="12dp"
+            android:paddingHorizontal="24dp"
+            android:gravity="center"
+            android:elevation="4dp"
+            android:stateListAnimator="@animator/button_state_animator" />
+
+    </LinearLayout>
+
+</androidx.cardview.widget.CardView>

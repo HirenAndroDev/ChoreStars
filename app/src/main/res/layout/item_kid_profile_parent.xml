@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:padding="16dp"
+    android:layout_marginBottom="12dp"
+    android:background="@drawable/bg_kid_profile_item_parent"
+    android:gravity="center_vertical">
+
+    <!-- Kid Profile Image -->
+    <de.hdodenhof.circleimageview.CircleImageView
+        android:id="@+id/iv_kid_profile"
+        android:layout_width="56dp"
+        android:layout_height="56dp"
+        android:src="@drawable/default_avatar"
+        app:civ_border_width="2dp"
+        app:civ_border_color="@color/colorPrimary"
+        android:layout_marginEnd="16dp" />
+
+    <!-- Kid Details -->
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+        <!-- Kid Name -->
+        <TextView
+            android:id="@+id/tv_kid_name"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Jijo"
+            android:textSize="20sp"
+            android:textStyle="bold"
+            android:textColor="@color/text_primary" />
+
+        <!-- Tasks Due Today -->
+        <TextView
+            android:id="@+id/tv_tasks_due"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="1 Task Due Today"
+            android:textSize="14sp"
+            android:textColor="@color/text_secondary"
+            android:layout_marginTop="4dp" />
+
+    </LinearLayout>
+
+    <!-- Star Balance -->
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <TextView
+            android:id="@+id/tv_kid_star_balance"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="4"
+            android:textSize="24sp"
+            android:textStyle="bold"
+            android:textColor="@color/star_orange" />
+
+        <ImageView
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:src="@drawable/ic_star_filled"
+            android:layout_marginStart="4dp"
+            app:tint="@color/star_orange" />
+
+    </LinearLayout>
+
+</LinearLayout>

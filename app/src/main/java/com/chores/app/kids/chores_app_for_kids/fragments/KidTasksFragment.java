@@ -3,11 +3,19 @@ package com.chores.app.kids.chores_app_for_kids.fragments;
 
 import android.animation.AnimatorSet;
 import android.animation.ObjectAnimator;
+import android.app.Dialog;
+import android.content.Context;
+import android.content.SharedPreferences;
 import android.content.res.ColorStateList;
 import android.os.Bundle;
+import android.speech.tts.TextToSpeech;
+import android.util.DisplayMetrics;
+import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.Window;
+import android.view.WindowManager;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
@@ -16,32 +24,48 @@ import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
+
+import com.bumptech.glide.Glide;
 import com.chores.app.kids.chores_app_for_kids.R;
 import com.chores.app.kids.chores_app_for_kids.activities.KidDashboardActivity;
 import com.chores.app.kids.chores_app_for_kids.adapters.KidTaskAdapter;
+import com.chores.app.kids.chores_app_for_kids.dialogs.KidProfilesDialog;
+import com.chores.app.kids.chores_app_for_kids.models.KidProfile;
 import com.chores.app.kids.chores_app_for_kids.models.Task;
+import com.chores.app.kids.chores_app_for_kids.models.User;
+import com.chores.app.kids.chores_app_for_kids.models.ChildProfile;
+import com.chores.app.kids.chores_app_for_kids.adapters.KidProfileDialogAdapter;
+import com.chores.app.kids.chores_app_for_kids.utils.KidProfileManager;
 import com.chores.app.kids.chores_app_for_kids.utils.AuthHelper;
 import com.chores.app.kids.chores_app_for_kids.utils.FirebaseHelper;
 import com.chores.app.kids.chores_app_for_kids.utils.SoundHelper;
+
+import de.hdodenhof.circleimageview.CircleImageView;
 import java.util.ArrayList;
-import java.util.Calendar;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class KidTasksFragment extends Fragment {
 
     private RecyclerView recyclerViewTasks;
-    private TextView tvTasksTitle;
-    private TextView tvTasksCompleted;
+    private TextView tvKidName;
+    private TextView tvStarBalance;
     private TextView tvEmptyMessage;
-    private LinearLayout layoutProgress;
     private LinearLayout layoutEmptyState;
-    private ImageView ivProgressIcon;
+    private CircleImageView ivKidProfile;
+    private ImageView ivStarIcon;
 
+    
     private KidTaskAdapter taskAdapter;
     private List<Task> taskList;
     private List<Task> completedTasks;
     private String childId;
     private String familyId;
+    private int currentStarBalance = 0;
+    private String childName;
 
     @Nullable
     @Override
@@ -58,41 +82,39 @@ public class KidTasksFragment extends Fragment {
 
     private void initializeViews(View view) {
         recyclerViewTasks = view.findViewById(R.id.recycler_view_kid_tasks);
-        tvTasksTitle = view.findViewById(R.id.tv_tasks_title);
-        tvTasksCompleted = view.findViewById(R.id.tv_tasks_completed);
+        tvKidName = view.findViewById(R.id.tv_kid_name);
+        tvStarBalance = view.findViewById(R.id.tv_star_balance);
         tvEmptyMessage = view.findViewById(R.id.tv_empty_message);
-        layoutProgress = view.findViewById(R.id.layout_progress);
         layoutEmptyState = view.findViewById(R.id.layout_empty_state);
-        ivProgressIcon = view.findViewById(R.id.iv_progress_icon);
+        ivKidProfile = view.findViewById(R.id.iv_kid_profile);
+        ivStarIcon = view.findViewById(R.id.iv_star_icon);
 
-        // Set time-based greeting
-        setTimeBasedTitle();
-    }
-
-    private void setTimeBasedTitle() {
-        Calendar calendar = Calendar.getInstance();
-        int hour = calendar.get(Calendar.HOUR_OF_DAY);
-
-        String title;
-        if (hour < 12) {
-            title = "Good Morning Tasks! 🌅";
-        } else if (hour < 17) {
-            title = "Afternoon Adventures! ☀️";
+        // Set click listener for kid profile to show profiles dialog
+        LinearLayout layoutKidProfile = view.findViewById(R.id.layout_kid_profile_section);
+        if (layoutKidProfile != null) {
+            layoutKidProfile.setOnClickListener(v -> showKidProfilesDialog());
         } else {
-            title = "Evening Activities! 🌙";
+            // If no layout found, set click listener on profile image itself
+            ivKidProfile.setOnClickListener(v -> showKidProfilesDialog());
         }
 
-        tvTasksTitle.setText(title);
+        childName = String.valueOf(tvKidName);
+       
     }
 
     private void setupRecyclerView() {
         taskList = new ArrayList<>();
         completedTasks = new ArrayList<>();
 
-        taskAdapter = new KidTaskAdapter(taskList, getContext(), new KidTaskAdapter.OnTaskCompletedListener() {
+        taskAdapter = new KidTaskAdapter(taskList, getContext(), new KidTaskAdapter.OnTaskInteractionListener() {
             @Override
             public void onTaskCompleted(Task task) {
                 handleTaskCompletion(task);
+            }
+
+            @Override
+            public void onTaskClicked(Task task) {
+                showTaskDetailDialog(task);
             }
         });
 
@@ -105,8 +127,53 @@ public class KidTasksFragment extends Fragment {
     }
 
     private void loadUserData() {
-        childId = AuthHelper.getCurrentUserId();
+        childId = AuthHelper.getCurrentUserId(getContext());
         familyId = AuthHelper.getFamilyId(getContext());
+
+        // Load child user data
+        if (childId != null) {
+            FirebaseHelper.getUserById(childId, new FirebaseHelper.CurrentUserCallback() {
+                @Override
+                public void onUserLoaded(User user) {
+                    if (getActivity() != null) {
+                        getActivity().runOnUiThread(() -> {
+                            updateKidProfileUI(user);
+                        });
+                    }
+                }
+
+                @Override
+                public void onError(String error) {
+                    // Handle error silently
+                }
+            });
+
+            // Load star balance
+            FirebaseHelper.getUserStarBalanceById(childId, balance -> {
+                if (getActivity() != null) {
+                    getActivity().runOnUiThread(() -> {
+                        currentStarBalance = balance;
+                        tvStarBalance.setText(String.valueOf(balance));
+                    });
+                }
+            });
+        }
+    }
+
+    private void updateKidProfileUI(User user) {
+        if (user != null) {
+            tvKidName.setText(user.getName());
+
+            // Load profile image
+            if (user.getProfileImageUrl() != null && !user.getProfileImageUrl().isEmpty()) {
+                Glide.with(this)
+                        .load(user.getProfileImageUrl())
+                        .circleCrop()
+                        .into(ivKidProfile);
+            } else {
+                ivKidProfile.setImageResource(R.drawable.default_avatar);
+            }
+        }
     }
 
     private void loadTasks() {
@@ -115,15 +182,17 @@ public class KidTasksFragment extends Fragment {
             return;
         }
 
-        FirebaseHelper.getTasksForChild(childId, familyId, new FirebaseHelper.TasksCallback() {
+        // Get current date string
+        String currentDate = getCurrentDateString();
+
+        // Load tasks for current date only
+        FirebaseHelper.getTasksForDate(childId, currentDate, new FirebaseHelper.OnTasksLoadedListener() {
             @Override
             public void onTasksLoaded(List<Task> tasks) {
                 if (getActivity() != null) {
                     getActivity().runOnUiThread(() -> {
-                        updateTaskList(tasks);
-                        checkForCompletedTasks(tasks);
-                        updateProgressDisplay();
-                        announceTaskStatus();
+                        // Check completion status for each task
+                        loadTodaysCompletedTasks(tasks);
                     });
                 }
             }
@@ -139,6 +208,43 @@ public class KidTasksFragment extends Fragment {
         });
     }
 
+    private void loadTodaysCompletedTasks(List<Task> activeTasks) {
+        // Check completion status for each task
+        for (Task task : activeTasks) {
+            if (task.getTaskId() != null) {
+                FirebaseHelper.getTaskCompletionForToday(childId, task.getTaskId(), isCompleted -> {
+                    if (isCompleted) {
+                        task.setStatus("completed");
+                    } else {
+                        task.setStatus("active");
+                    }
+
+                    // Update UI after checking all tasks
+                    updateTaskListAfterCompletionCheck(activeTasks);
+                });
+            }
+        }
+
+        // If no tasks have IDs, just update with active tasks
+        if (activeTasks.stream().noneMatch(task -> task.getTaskId() != null)) {
+            updateTaskList(activeTasks);
+        }
+    }
+
+    private void updateTaskListAfterCompletionCheck(List<Task> allTasks) {
+        if (getActivity() != null) {
+            getActivity().runOnUiThread(() -> {
+                updateTaskList(allTasks);
+                checkForCompletedTasks(allTasks);
+            });
+        }
+    }
+
+    private String getCurrentDateString() {
+        java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault());
+        return sdf.format(new java.util.Date());
+    }
+
     private void updateTaskList(List<Task> tasks) {
         taskList.clear();
         completedTasks.clear();
@@ -151,10 +257,16 @@ public class KidTasksFragment extends Fragment {
             }
         }
 
+        // Sort both active and completed tasks
+        sortTasksByTime(taskList);
+        sortTasksByTime(completedTasks);
+
+        // Add completed tasks to the end of the list for display
+        taskList.addAll(completedTasks);
         taskAdapter.notifyDataSetChanged();
 
         // Show appropriate view
-        if (taskList.isEmpty() && completedTasks.isEmpty()) {
+        if (taskList.isEmpty()) {
             showEmptyState("No tasks today! Great job! 🎉");
         } else {
             layoutEmptyState.setVisibility(View.GONE);
@@ -172,218 +284,316 @@ public class KidTasksFragment extends Fragment {
         }
     }
 
-    private void updateProgressDisplay() {
-        int totalTasks = taskList.size() + completedTasks.size();
-        int completed = completedTasks.size();
+    private void showTaskDetailDialog(Task task) {
+        Dialog dialog = new Dialog(getContext());
+        View dialogView = LayoutInflater.from(getContext()).inflate(R.layout.dialog_task_detail, null);
+        dialog.setContentView(dialogView);
 
-        if (totalTasks > 0) {
-            layoutProgress.setVisibility(View.VISIBLE);
-            tvTasksCompleted.setText(String.format("%d of %d tasks completed!", completed, totalTasks));
+        // Fix dialog window size and appearance
+        Window window = dialog.getWindow();
+        if (window != null) {
+            window.setBackgroundDrawableResource(android.R.color.transparent);
 
-            // Update progress icon based on completion
-            float progress = (float) completed / totalTasks;
-            updateProgressIcon(progress);
-        } else {
-            layoutProgress.setVisibility(View.GONE);
+            // Set dialog width to 90% of screen width
+            DisplayMetrics displayMetrics = new DisplayMetrics();
+            getActivity().getWindowManager().getDefaultDisplay().getMetrics(displayMetrics);
+            int dialogWidth = (int) (displayMetrics.widthPixels * 0.9);
+
+            // Set layout parameters
+            window.setLayout(dialogWidth, WindowManager.LayoutParams.WRAP_CONTENT);
+            window.setGravity(Gravity.CENTER);
+
+            // Add animation
+            window.getAttributes().windowAnimations = android.R.style.Animation_Dialog;
         }
-    }
 
-    private void updateProgressIcon(float progress) {
-        if (progress == 0f) {
-            ivProgressIcon.setImageResource(R.drawable.ic_star_empty);
-            ivProgressIcon.setImageTintList(ColorStateList.valueOf(getResources().getColor(R.color.text_secondary)));
-        } else if (progress < 0.5f) {
-            ivProgressIcon.setImageResource(R.drawable.ic_star_half);
-            ivProgressIcon.setImageTintList(ColorStateList.valueOf(getResources().getColor(R.color.star_yellow)));
-        } else if (progress < 1.0f) {
-            ivProgressIcon.setImageResource(R.drawable.ic_star_three_quarter);
-            ivProgressIcon.setImageTintList(ColorStateList.valueOf(getResources().getColor(R.color.star_yellow)));
+        // Set task details
+        TextView tvDialogTaskName = dialogView.findViewById(R.id.tv_dialog_task_name);
+        TextView tvDialogTaskNotes = dialogView.findViewById(R.id.tv_dialog_task_notes);
+        TextView tvDialogStarReward = dialogView.findViewById(R.id.tv_dialog_star_reward);
+        TextView tvDialogReminderTime = dialogView.findViewById(R.id.tv_dialog_reminder_time);
+        LinearLayout layoutDialogReminderTime = dialogView.findViewById(R.id.layout_dialog_reminder_time);
+        ImageView ivDialogTaskIcon = dialogView.findViewById(R.id.iv_dialog_task_icon);
+        androidx.appcompat.widget.AppCompatButton btnDialogAction = dialogView.findViewById(R.id.btn_dialog_action);
+        ImageView ivClose = dialogView.findViewById(R.id.iv_close_dialog);
+
+        tvDialogTaskName.setText(task.getName());
+        tvDialogStarReward.setText(String.valueOf(task.getStarReward()));
+
+        // Set task notes
+        if (task.getNotes() != null && !task.getNotes().trim().isEmpty()) {
+            tvDialogTaskNotes.setText(task.getNotes());
+            tvDialogTaskNotes.setVisibility(View.VISIBLE);
         } else {
-            ivProgressIcon.setImageResource(R.drawable.ic_star_full);
-            ivProgressIcon.setImageTintList(ColorStateList.valueOf(getResources().getColor(R.color.star_yellow)));
-            animateProgressIcon();
+            tvDialogTaskNotes.setVisibility(View.GONE);
         }
-    }
 
-    private void animateProgressIcon() {
-        ObjectAnimator scaleX = ObjectAnimator.ofFloat(ivProgressIcon, "scaleX", 1f, 1.3f, 1f);
-        ObjectAnimator scaleY = ObjectAnimator.ofFloat(ivProgressIcon, "scaleY", 1f, 1.3f, 1f);
-        ObjectAnimator rotation = ObjectAnimator.ofFloat(ivProgressIcon, "rotation", 0f, 360f);
+        // Set reminder time
+        if (task.getReminderTime() != null && !task.getReminderTime().trim().isEmpty()) {
+            tvDialogReminderTime.setText(task.getReminderTime());
+            layoutDialogReminderTime.setVisibility(View.VISIBLE);
+        } else {
+            layoutDialogReminderTime.setVisibility(View.GONE);
+        }
 
-        AnimatorSet animatorSet = new AnimatorSet();
-        animatorSet.playTogether(scaleX, scaleY, rotation);
-        animatorSet.setDuration(1000);
-        animatorSet.start();
-    }
-
-    private void handleTaskCompletion(Task task) {
-        // Show loading state on the task
-        task.setStatus("completing");
-        taskAdapter.notifyDataSetChanged();
-
-        // Complete task in Firebase
-        FirebaseHelper.completeTask(task.getTaskId(), childId, result -> {
-            if (getActivity() != null) {
-                getActivity().runOnUiThread(() -> {
-                    if (result.isSuccessful()) {
-                        // Task completed successfully
-                        task.setStatus("completed");
-
-                        // Move task to completed list
-                        taskList.remove(task);
-                        completedTasks.add(task);
-                        taskAdapter.notifyDataSetChanged();
-
-                        // Update progress and celebrate
-                        updateProgressDisplay();
-                        celebrateTaskCompletion(task);
-
-                        // Notify parent activity
-                        if (getActivity() instanceof KidDashboardActivity) {
-                            ((KidDashboardActivity) getActivity()).onTaskCompleted(task);
-                        }
-
-                        // Check if all tasks are completed
-                        if (taskList.isEmpty() && !completedTasks.isEmpty()) {
-                            showAllTasksCompletedCelebration();
-                        }
-
-                    } else {
-                        // Task completion failed
-                        task.setStatus("pending");
-                        taskAdapter.notifyDataSetChanged();
-                        SoundHelper.playErrorSound(getContext());
-
-                        if (getActivity() instanceof KidDashboardActivity) {
-                            ((KidDashboardActivity) getActivity()).announceIfEnabled(
-                                    "Oops! Something went wrong. Let's try again!");
-                        }
-                    }
-                });
+        // Set task icon
+        String iconName = task.getIconName();
+        if (iconName != null && !iconName.isEmpty()) {
+            if (task.getIconUrl() != null && !task.getIconUrl().isEmpty()) {
+                Glide.with(getContext())
+                        .load(task.getIconUrl())
+                        .placeholder(R.drawable.ic_task_default)
+                        .error(R.drawable.ic_task_default)
+                        .into(ivDialogTaskIcon);
+            } else {
+                int iconResId = getContext().getResources().getIdentifier(iconName, "drawable", getContext().getPackageName());
+                if (iconResId != 0) {
+                    ivDialogTaskIcon.setImageResource(iconResId);
+                } else {
+                    ivDialogTaskIcon.setImageResource(R.drawable.ic_task_default);
+                }
             }
+        } else {
+            ivDialogTaskIcon.setImageResource(R.drawable.ic_task_default);
+        }
+
+        // Set button based on completion status
+        boolean isCompleted = "completed".equals(task.getStatus());
+        if (isCompleted) {
+            btnDialogAction.setText("Mark as Incomplete");
+            btnDialogAction.setBackgroundResource(R.drawable.bg_button_incomplete);
+            btnDialogAction.setCompoundDrawablesWithIntrinsicBounds(R.drawable.ic_checkbox_unchecked, 0, 0, 0);
+        } else {
+            btnDialogAction.setText("Mark as Complete");
+            btnDialogAction.setBackgroundResource(R.drawable.bg_button_complete);
+            btnDialogAction.setCompoundDrawablesWithIntrinsicBounds(R.drawable.ic_checkbox_checked, 0, 0, 0);
+        }
+
+        // Set click listeners
+        btnDialogAction.setOnClickListener(v -> {
+            dialog.dismiss();
+            handleTaskCompletion(task);
         });
+
+        ivClose.setOnClickListener(v -> dialog.dismiss());
+
+        // Make dialog cancelable by tapping outside
+        dialog.setCanceledOnTouchOutside(true);
+
+        dialog.show();
+    }
+    private void handleTaskCompletion(Task task) {
+        boolean isCurrentlyCompleted = "completed".equals(task.getStatus());
+
+        if (isCurrentlyCompleted) {
+            // Mark as incomplete (reverse completion)
+            task.setStatus("uncompleting");
+            taskAdapter.notifyDataSetChanged();
+
+            // Remove task completion from Firebase
+            FirebaseHelper.uncompleteTask(task.getTaskId(), childId, result -> {
+                if (getActivity() != null) {
+                    getActivity().runOnUiThread(() -> {
+                        if (result.isSuccessful()) {
+                            // Task uncompleted successfully
+                            task.setStatus("active");
+                            taskAdapter.notifyDataSetChanged();
+
+                            // Update star balance
+                            int newBalance = currentStarBalance - task.getStarReward();
+                            updateStarBalance(newBalance);
+
+                            // Play sound
+                            SoundHelper.playClickSound(getContext());
+
+                        } else {
+                            // Task uncompletion failed
+                            task.setStatus("completed");
+                            taskAdapter.notifyDataSetChanged();
+                            SoundHelper.playErrorSound(getContext());
+                        }
+                    });
+                }
+            });
+
+        } else {
+            // Mark as complete
+            task.setStatus("completing");
+            taskAdapter.notifyDataSetChanged();
+
+            // Complete task in Firebase
+            FirebaseHelper.completeTask(task.getTaskId(), childId, result -> {
+                if (getActivity() != null) {
+                    getActivity().runOnUiThread(() -> {
+                        if (result.isSuccessful()) {
+                            // Task completed successfully
+                            task.setStatus("completed");
+                            taskAdapter.notifyDataSetChanged();
+
+                            // Update star balance
+                            int newBalance = currentStarBalance + task.getStarReward();
+                            updateStarBalance(newBalance);
+
+                            // Celebrate task completion
+                            celebrateTaskCompletion(task);
+
+                            // Check if all tasks are completed
+                            if (areAllTasksCompleted()) {
+                                showAllTasksCompletedCelebration();
+                            }
+
+                        } else {
+                            // Task completion failed
+                            task.setStatus("active");
+                            taskAdapter.notifyDataSetChanged();
+                            SoundHelper.playErrorSound(getContext());
+                        }
+                    });
+                }
+            });
+        }
+    }
+
+    private void updateStarBalance(int newBalance) {
+        int previousBalance = currentStarBalance;
+
+        currentStarBalance = newBalance;
+        tvStarBalance.setText(String.valueOf(newBalance));
+
+        // Notify parent activity
+        if (getActivity() instanceof KidDashboardActivity) {
+            ((KidDashboardActivity) getActivity()).updateStarBalance(newBalance);
+        }
+
+        // Animate star icon if balance increased
+        if (newBalance > previousBalance) {
+            animateStarIncrease(newBalance - previousBalance);
+        }
+    }
+
+    private boolean areAllTasksCompleted() {
+        for (Task task : taskList) {
+            if (!"completed".equals(task.getStatus())) {
+                return false;
+            }
+        }
+        return !taskList.isEmpty();
     }
 
     private void celebrateTaskCompletion(Task task) {
         // Play celebration sound
         SoundHelper.playTaskCompleteSound(getContext());
 
-        // Show celebration animation
-        showTaskCompletionAnimation(task);
 
-        // Announce completion
-        if (getActivity() instanceof KidDashboardActivity) {
-            ((KidDashboardActivity) getActivity()).announceTaskCompletion(task.getName(), task.getStarReward());
-        }
-    }
-
-    private void showTaskCompletionAnimation(Task task) {
-        // Create floating star animation
-        View celebrationView = LayoutInflater.from(getContext())
-                .inflate(R.layout.task_completion_celebration, null);
-
-        TextView tvTaskName = celebrationView.findViewById(R.id.tv_completed_task_name);
-        TextView tvStarsEarned = celebrationView.findViewById(R.id.tv_stars_earned);
-
-        tvTaskName.setText(task.getName());
-        tvStarsEarned.setText(String.format("+%d ⭐", task.getStarReward()));
-
-        // Add to parent view with animation
-        if (getActivity() != null && getActivity().findViewById(R.id.fragment_container_kid) != null) {
-            ViewGroup parent = getActivity().findViewById(R.id.fragment_container_kid);
-            parent.addView(celebrationView);
-
-            // Animate celebration view
-            celebrationView.setAlpha(0f);
-            celebrationView.setScaleX(0.5f);
-            celebrationView.setScaleY(0.5f);
-
-            celebrationView.animate()
-                    .alpha(1f)
-                    .scaleX(1f)
-                    .scaleY(1f)
-                    .setDuration(500)
-                    .withEndAction(() -> {
-                        // Remove after delay
-                        celebrationView.postDelayed(() -> {
-                            celebrationView.animate()
-                                    .alpha(0f)
-                                    .setDuration(300)
-                                    .withEndAction(() -> parent.removeView(celebrationView))
-                                    .start();
-                        }, 2000);
-                    })
-                    .start();
-        }
     }
 
     private void showAllTasksCompletedCelebration() {
-        // Big celebration for completing all tasks
+        Dialog dialog = new Dialog(getContext());
+        View dialogView = LayoutInflater.from(getContext()).inflate(R.layout.dialog_congratulations, null);
+        dialog.setContentView(dialogView);
+        dialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
+
+        // Calculate total stars earned from all completed tasks today
+        int totalStarsEarned = 0;
+        for (Task task : taskList) {
+            if ("completed".equals(task.getStatus())) {
+                totalStarsEarned += task.getStarReward();
+            }
+        }
+
+        TextView tvCongratulationsStars = dialogView.findViewById(R.id.tv_congratulations_stars);
+        tvCongratulationsStars.setText(String.valueOf(totalStarsEarned));
+
+        androidx.appcompat.widget.AppCompatButton btnContinue = dialogView.findViewById(R.id.btn_congratulations_continue);
+        btnContinue.setOnClickListener(v -> dialog.dismiss());
+
+        // Play celebration sound
         SoundHelper.playCelebrationSound(getContext());
 
-        if (getActivity() instanceof KidDashboardActivity) {
-            ((KidDashboardActivity) getActivity()).announceIfEnabled(
-                    "Amazing! You completed all your tasks today! You're a superstar!");
-        }
+        // Announce completion
 
-        // Show special all-complete animation
-        showAllCompleteAnimation();
-    }
 
-    private void showAllCompleteAnimation() {
-        // Create confetti or fireworks animation
-        View allCompleteView = LayoutInflater.from(getContext())
-                .inflate(R.layout.all_tasks_complete_celebration, null);
-
-        if (getActivity() != null) {
-            ViewGroup parent = getActivity().findViewById(android.R.id.content);
-            parent.addView(allCompleteView);
-
-            // Auto-remove after celebration
-            allCompleteView.postDelayed(() -> {
-                allCompleteView.animate()
-                        .alpha(0f)
-                        .setDuration(500)
-                        .withEndAction(() -> parent.removeView(allCompleteView))
-                        .start();
-            }, 3000);
-        }
+        dialog.show();
     }
 
     private void showEmptyState(String message) {
         recyclerViewTasks.setVisibility(View.GONE);
-        layoutProgress.setVisibility(View.GONE);
         layoutEmptyState.setVisibility(View.VISIBLE);
         tvEmptyMessage.setText(message);
-    }
-
-    private void announceTaskStatus() {
-        if (getActivity() instanceof KidDashboardActivity) {
-            KidDashboardActivity dashboard = (KidDashboardActivity) getActivity();
-            int totalTasks = taskList.size() + completedTasks.size();
-
-            if (totalTasks == 0) {
-                dashboard.announceIfEnabled("You have no tasks today! Enjoy your free time!");
-            } else if (taskList.isEmpty()) {
-                dashboard.announceIfEnabled("Fantastic! You completed all your tasks today!");
-            } else {
-                dashboard.announceIfEnabled(String.format("You have %d %s to complete today!",
-                        taskList.size(),
-                        taskList.size() == 1 ? "task" : "tasks"));
-            }
-        }
     }
 
     @Override
     public void onResume() {
         super.onResume();
         // Refresh tasks when fragment becomes visible
+        loadUserData();
         loadTasks();
 
-        // Announce page change
-        if (getActivity() instanceof KidDashboardActivity) {
-            ((KidDashboardActivity) getActivity()).announceIfEnabled("Tasks page");
+
+    }
+
+    // Method to show kid profiles dialog
+    private void showKidProfilesDialog() {
+        // Get all saved kid profiles
+        List<KidProfile> savedKidProfiles = AuthHelper.getSavedKidProfiles(getContext());
+        List<ChildProfile> childProfiles = new ArrayList<>();
+
+        // Convert KidProfile to ChildProfile for dialog
+        for (KidProfile kidProfile : savedKidProfiles) {
+            ChildProfile childProfile = new ChildProfile();
+            childProfile.setChildId(kidProfile.getKidId());
+            childProfile.setName(kidProfile.getName());
+            childProfile.setFamilyId(kidProfile.getFamilyId());
+            childProfile.setProfileImageUrl(kidProfile.getProfileImageUrl());
+            childProfile.setStarBalance(kidProfile.getStarBalance());
+            childProfiles.add(childProfile);
         }
+
+        // If no saved profiles, add current kid
+        if (childProfiles.isEmpty()) {
+            ChildProfile currentKid = new ChildProfile();
+            currentKid.setChildId(AuthHelper.getChildId(getContext()));
+            currentKid.setName(AuthHelper.getUserName(getContext()));
+            currentKid.setFamilyId(AuthHelper.getFamilyId(getContext()));
+            currentKid.setProfileImageUrl("");
+            currentKid.setStarBalance(currentStarBalance);
+            childProfiles.add(currentKid);
+        }
+
+        String selectedKidId = AuthHelper.getChildId(getContext());
+
+        KidProfilesDialog dialog = new KidProfilesDialog(getContext(), childProfiles, selectedKidId);
+        dialog.setOnKidSelectedListener(childProfile -> {
+            // Switch to selected kid using AuthHelper
+            AuthHelper.switchToKidProfile(getContext(), childProfile.getChildId());
+
+            // Update current fragment data
+            childId = childProfile.getChildId();
+            familyId = childProfile.getFamilyId();
+
+            // Load user data and star balance for the new kid
+            loadUserData();
+            loadTasks();
+        });
+        dialog.show();
+    }
+
+    private void showLogoutConfirmation() {
+        new android.app.AlertDialog.Builder(getContext())
+                .setTitle("Log Out")
+                .setMessage("Are you sure you want to log out?")
+                .setPositiveButton("Yes", (dialog, which) -> {
+                    // Clear kid profiles and navigate back to main activity
+                    KidProfileManager kidProfileManager = new KidProfileManager(getContext());
+                    kidProfileManager.clearAllKidProfiles();
+
+                    // Finish current activity and go back to main
+                    if (getActivity() != null) {
+                        getActivity().finish();
+                    }
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
     }
 
     // Custom ItemDecoration for spacing
@@ -403,6 +613,125 @@ public class KidTasksFragment extends Fragment {
             if (parent.getChildAdapterPosition(view) == 0) {
                 outRect.top = spacing;
             }
+        }
+    }
+
+    private void animateStarIncrease(int starsEarned) {
+        // Scale animation for star icon
+        ObjectAnimator scaleX = ObjectAnimator.ofFloat(ivStarIcon, "scaleX", 1f, 1.5f, 1f);
+        ObjectAnimator scaleY = ObjectAnimator.ofFloat(ivStarIcon, "scaleY", 1f, 1.5f, 1f);
+        scaleX.setDuration(600);
+        scaleY.setDuration(600);
+        scaleX.start();
+        scaleY.start();
+
+        // Rotation animation
+        ObjectAnimator rotation = ObjectAnimator.ofFloat(ivStarIcon, "rotation", 0f, 360f);
+        rotation.setDuration(800);
+        rotation.start();
+
+        // Play sound
+        SoundHelper.playStarEarnedSound(getContext());
+
+        // Announce star gain
+
+    }
+
+    /**
+     * Sort tasks by reminder time first, then by creation time
+     */
+    private void sortTasksByTime(List<Task> taskList) {
+        Collections.sort(taskList, new Comparator<Task>() {
+            @Override
+            public int compare(Task task1, Task task2) {
+                String reminderTime1 = task1.getReminderTime();
+                String reminderTime2 = task2.getReminderTime();
+
+                // Check if both tasks have reminder times
+                boolean hasReminder1 = reminderTime1 != null && !reminderTime1.trim().isEmpty();
+                boolean hasReminder2 = reminderTime2 != null && !reminderTime2.trim().isEmpty();
+
+                if (hasReminder1 && hasReminder2) {
+                    // Both have reminder times - sort by reminder time
+                    int timeComparison = compareReminderTimes(reminderTime1, reminderTime2);
+                    if (timeComparison != 0) {
+                        return timeComparison;
+                    }
+                    // If reminder times are equal, sort by creation time
+                    return Long.compare(task1.getCreatedTimestamp(), task2.getCreatedTimestamp());
+
+                } else if (hasReminder1) {
+                    // Only task1 has reminder time - it comes first
+                    return -1;
+
+                } else if (hasReminder2) {
+                    // Only task2 has reminder time - it comes first
+                    return 1;
+
+                } else {
+                    // Neither has reminder time - sort by creation time
+                    return Long.compare(task1.getCreatedTimestamp(), task2.getCreatedTimestamp());
+                }
+            }
+        });
+    }
+
+    /**
+     * Compare reminder times in HH:MM format
+     * Returns negative if time1 is earlier, positive if time1 is later, 0 if equal
+     */
+    private int compareReminderTimes(String time1, String time2) {
+        try {
+            // Parse time strings (assuming format like "09:30" or "9:30 AM")
+            int minutes1 = parseTimeToMinutes(time1);
+            int minutes2 = parseTimeToMinutes(time2);
+
+            return Integer.compare(minutes1, minutes2);
+        } catch (Exception e) {
+            // If parsing fails, fall back to string comparison
+            return time1.compareTo(time2);
+        }
+    }
+
+    /**
+     * Convert time string to minutes from midnight for easy comparison
+     */
+    private int parseTimeToMinutes(String timeStr) {
+        if (timeStr == null || timeStr.trim().isEmpty()) {
+            return Integer.MAX_VALUE; // Put invalid times at the end
+        }
+
+        timeStr = timeStr.trim().toUpperCase();
+        boolean isPM = timeStr.contains("PM");
+        boolean isAM = timeStr.contains("AM");
+
+        // Remove AM/PM markers
+        timeStr = timeStr.replace("AM", "").replace("PM", "").trim();
+
+        String[] parts = timeStr.split(":");
+        if (parts.length != 2) {
+            return Integer.MAX_VALUE; // Invalid format
+        }
+
+        try {
+            int hours = Integer.parseInt(parts[0].trim());
+            int minutes = Integer.parseInt(parts[1].trim());
+
+            // Convert to 24-hour format if needed
+            if (isPM && hours != 12) {
+                hours += 12;
+            } else if (isAM && hours == 12) {
+                hours = 0;
+            }
+
+            // Validate ranges
+            if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) {
+                return Integer.MAX_VALUE;
+            }
+
+            return hours * 60 + minutes;
+        } catch (NumberFormatException e) {
+            return Integer.MAX_VALUE; // Invalid format
         }
     }
 }

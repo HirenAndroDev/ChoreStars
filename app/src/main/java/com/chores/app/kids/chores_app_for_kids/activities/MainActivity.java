@@ -9,6 +9,8 @@ import android.widget.Button;
 import com.chores.app.kids.chores_app_for_kids.R;
 import com.chores.app.kids.chores_app_for_kids.activities.ParentLoginActivity;
 import com.chores.app.kids.chores_app_for_kids.activities.KidLoginActivity;
+import com.chores.app.kids.chores_app_for_kids.activities.KidDashboardActivity;
+import com.chores.app.kids.chores_app_for_kids.utils.AuthHelper;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -19,6 +21,14 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+
+        // Check if a kid is already logged in
+        if (AuthHelper.isKidLoggedIn(this)) {
+            Intent intent = new Intent(MainActivity.this, KidDashboardActivity.class);
+            startActivity(intent);
+            finish();
+            return;
+        }
 
         initializeViews();
         setupClickListeners();
@@ -41,8 +51,14 @@ public class MainActivity extends AppCompatActivity {
         btnKid.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                Intent intent = new Intent(MainActivity.this, KidLoginActivity.class);
-                startActivity(intent);
+                // Check if a kid is already logged in
+                if (AuthHelper.isKidLoggedIn(MainActivity.this)) {
+                    Intent intent = new Intent(MainActivity.this, KidDashboardActivity.class);
+                    startActivity(intent);
+                } else {
+                    Intent intent = new Intent(MainActivity.this, KidLoginActivity.class);
+                    startActivity(intent);
+                }
             }
         });
     }

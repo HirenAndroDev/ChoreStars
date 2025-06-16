@@ -7,6 +7,7 @@ public class Reward {
     private String rewardId;
     private String name;
     private String iconName;
+    private String iconUrl;
     private int starCost;
     private List<String> availableForKids;
     private String renewalPeriod;
@@ -36,6 +37,14 @@ public class Reward {
 
     public String getIconName() { return iconName; }
     public void setIconName(String iconName) { this.iconName = iconName; }
+
+    public String getIconUrl() {
+        return iconUrl;
+    }
+
+    public void setIconUrl(String iconUrl) {
+        this.iconUrl = iconUrl;
+    }
 
     public int getStarCost() { return starCost; }
     public void setStarCost(int starCost) { this.starCost = starCost; }

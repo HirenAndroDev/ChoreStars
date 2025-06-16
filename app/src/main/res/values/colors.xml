@@ -33,6 +33,7 @@
     <!-- Star Colors -->
     <color name="star_gold">#FFD700</color>
     <color name="star_silver">#C0C0C0</color>
+    <color name="star_orange">#FF9500</color>
 
     <!-- Task Status Colors -->
     <color name="task_completed">#4CAF50</color>
@@ -74,4 +75,11 @@
     <color name="disabled_background">#F5F5F5</color>
     <color name="error_background">#FFEBEE</color>
     <color name="success_background">#E8F5E8</color>
+
+    <!-- New colors for TaskManageFragment -->
+    <color name="light_gray">#F5F5F5</color>
+    <color name="green">#8BC34A</color>
+    <color name="orange">#FF9800</color>
+    <color name="gray">#757575</color>
+    <color name="light_background">#F5F5F5</color>
 </resources>

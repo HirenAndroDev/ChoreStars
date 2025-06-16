@@ -6,6 +6,9 @@ import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentManager;
 import androidx.fragment.app.FragmentTransaction;
 import android.os.Bundle;
+
+import com.chores.app.kids.chores_app_for_kids.fragments.MainRewardFragment;
+import com.chores.app.kids.chores_app_for_kids.fragments.TaskManageFragment;
 import com.google.android.material.bottomnavigation.BottomNavigationView;
 import com.chores.app.kids.chores_app_for_kids.R;
 import com.chores.app.kids.chores_app_for_kids.fragments.TasksFragment;
@@ -27,7 +30,7 @@ public class ParentDashboardActivity extends AppCompatActivity {
 
         // Show default fragment (Tasks)
         if (savedInstanceState == null) {
-            loadFragment(new TasksFragment());
+            loadFragment(new TaskManageFragment());
         }
     }
 
@@ -41,11 +44,13 @@ public class ParentDashboardActivity extends AppCompatActivity {
             Fragment selectedFragment = null;
 
             int itemId = item.getItemId();
-            if (itemId == R.id.nav_tasks) {
+            if (itemId == R.id.nav_tasksManage) {
+                selectedFragment = new TaskManageFragment();
+            } else if (itemId == R.id.nav_tasks) {
                 selectedFragment = new TasksFragment();
             } else if (itemId == R.id.nav_rewards) {
-                selectedFragment = new RewardsFragment();
-            } else if (itemId == R.id.nav_settings) {
+                selectedFragment = new MainRewardFragment();
+            }else if (itemId == R.id.nav_settings) {
                 selectedFragment = new SettingsFragment();
             }
 

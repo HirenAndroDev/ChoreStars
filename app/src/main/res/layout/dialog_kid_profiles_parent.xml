@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="@drawable/bg_dialog_rounded"
+    android:padding="24dp">
+
+    <!-- Header -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:layout_marginBottom="24dp">
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Kid Profiles"
+            android:textSize="24sp"
+            android:textStyle="bold"
+            android:textColor="@color/text_primary" />
+
+        <ImageView
+            android:id="@+id/iv_close_dialog"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:src="@drawable/ic_close"
+            android:background="@drawable/bg_close_button"
+            android:padding="8dp"
+            app:tint="@color/text_secondary" />
+
+    </LinearLayout>
+
+    <!-- Kid Profiles List -->
+    <LinearLayout
+        android:id="@+id/layout_kid_profiles_container"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:layout_marginBottom="24dp">
+
+        <!-- This will be populated dynamically -->
+
+    </LinearLayout>
+
+    <!-- Add Kid Profile Button -->
+    <LinearLayout
+        android:id="@+id/layout_add_kid_profile"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:background="@drawable/bg_add_kid_button"
+        android:padding="16dp">
+
+        <LinearLayout
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:background="@drawable/bg_add_kid_circle"
+            android:gravity="center">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="+"
+                android:textSize="24sp"
+                android:textStyle="bold"
+                android:textColor="@color/star_orange" />
+
+        </LinearLayout>
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Add Kid Profile"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:textColor="@color/star_orange"
+            android:layout_marginStart="16dp" />
+
+    </LinearLayout>
+
+</LinearLayout>

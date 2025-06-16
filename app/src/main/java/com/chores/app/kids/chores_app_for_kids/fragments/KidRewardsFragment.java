@@ -2,6 +2,7 @@ package com.chores.app.kids.chores_app_for_kids.fragments;
 
 import android.animation.ObjectAnimator;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -102,19 +103,37 @@ public class KidRewardsFragment extends Fragment {
     }
 
     private void loadUserData() {
-        childId = AuthHelper.getCurrentUserId();
+        childId = AuthHelper.getCurrentUserId(getContext());
         familyId = AuthHelper.getFamilyId(getContext());
 
-        // Load current star balance
-        FirebaseHelper.getUserStarBalance(balance -> {
-            if (getActivity() != null) {
-                getActivity().runOnUiThread(() -> {
-                    currentStarBalance = balance;
-                    updateStarBalanceDisplay();
-                    rewardAdapter.setUserStarBalance(balance);
-                });
-            }
-        });
+        Log.d("KidRewardsFragment", "Loading user data - childId: " + childId + ", familyId: " + familyId);
+
+        // Load current star balance for this specific child
+        if (childId != null && !childId.isEmpty()) {
+            FirebaseHelper.getUserStarBalanceById(childId, balance -> {
+                if (getActivity() != null) {
+                    getActivity().runOnUiThread(() -> {
+                        Log.d("KidRewardsFragment", "Loaded star balance for child " + childId + ": " + balance);
+                        currentStarBalance = balance;
+                        updateStarBalanceDisplay();
+                        rewardAdapter.setUserStarBalance(balance);
+                    });
+                }
+            });
+        } else {
+            Log.w("KidRewardsFragment", "No child ID found, using fallback method");
+            // Fallback to generic method if no child ID
+            FirebaseHelper.getUserStarBalance(balance -> {
+                if (getActivity() != null) {
+                    getActivity().runOnUiThread(() -> {
+                        Log.d("KidRewardsFragment", "Loaded star balance (fallback): " + balance);
+                        currentStarBalance = balance;
+                        updateStarBalanceDisplay();
+                        rewardAdapter.setUserStarBalance(balance);
+                    });
+                }
+            });
+        }
     }
 
     private void updateStarBalanceDisplay() {
@@ -248,6 +267,8 @@ public class KidRewardsFragment extends Fragment {
         // Show loading state
         showRedemptionInProgress(reward);
 
+        // The existing FirebaseHelper.redeemReward method has been updated to save to both
+        // rewardRedemptions and redeemedRewards collections, so no changes needed here
         FirebaseHelper.redeemReward(reward.getRewardId(), childId, result -> {
             if (getActivity() != null) {
                 getActivity().runOnUiThread(() -> {
@@ -272,10 +293,7 @@ public class KidRewardsFragment extends Fragment {
                         // Redemption failed
                         SoundHelper.playErrorSound(getContext());
 
-                        if (getActivity() instanceof KidDashboardActivity) {
-                            ((KidDashboardActivity) getActivity()).announceIfEnabled(
-                                    "Oops! Something went wrong. Let's try again!");
-                        }
+
                     }
                 });
             }
@@ -295,10 +313,7 @@ public class KidRewardsFragment extends Fragment {
         // Show reward redemption animation
         showRedemptionAnimation(reward);
 
-        // Announce redemption
-        if (getActivity() instanceof KidDashboardActivity) {
-            ((KidDashboardActivity) getActivity()).announceRewardRedemption(reward.getName(), reward.getStarCost());
-        }
+
     }
 
     private void showRedemptionAnimation(Reward reward) {
@@ -369,10 +384,6 @@ public class KidRewardsFragment extends Fragment {
                 })
                 .show();
 
-        // Announce insufficient stars
-        if (getActivity() instanceof KidDashboardActivity) {
-            ((KidDashboardActivity) getActivity()).announceInsufficientStars(needed);
-        }
 
         // Shake the reward item
         shakeRewardItem(reward);
@@ -402,13 +413,13 @@ public class KidRewardsFragment extends Fragment {
             KidDashboardActivity dashboard = (KidDashboardActivity) getActivity();
 
             if (rewardList.isEmpty()) {
-                dashboard.announceIfEnabled("No rewards are available right now.");
+
             } else if (affordableRewards.isEmpty()) {
-                dashboard.announceIfEnabled(String.format("There are %d rewards! Keep earning stars to get them!",
-                        rewardList.size()));
+
+
             } else {
-                dashboard.announceIfEnabled(String.format("Great! You can get %d rewards right now!",
-                        affordableRewards.size()));
+
+
             }
         }
     }
@@ -420,10 +431,7 @@ public class KidRewardsFragment extends Fragment {
         loadUserData();
         loadRewards();
 
-        // Announce page change
-        if (getActivity() instanceof KidDashboardActivity) {
-            ((KidDashboardActivity) getActivity()).announceIfEnabled("Rewards page");
-        }
+
     }
 
     // Custom ItemDecoration for grid spacing
