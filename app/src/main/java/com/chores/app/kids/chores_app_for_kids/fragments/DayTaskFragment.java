@@ -137,7 +137,12 @@ public class DayTaskFragment extends Fragment {
         taskAdapter = new KidTaskAdapter(tasks, requireContext(), new KidTaskAdapter.OnTaskInteractionListener() {
             @Override
             public void onTaskCompleted(Task task) {
-                handleTaskCompletion(task);
+                // Only allow task completion if this is the current day
+                if (isCurrentDay()) {
+                    handleTaskCompletion(task);
+                } else {
+                    Toast.makeText(getContext(), "Tasks can only be completed on the current day", Toast.LENGTH_SHORT).show();
+                }
             }
 
             @Override
@@ -148,9 +153,30 @@ public class DayTaskFragment extends Fragment {
         rvTasks.setLayoutManager(new LinearLayoutManager(requireContext()));
         rvTasks.setAdapter(taskAdapter);
 
+        // UPDATED: Set whether this is current day in the adapter
+        taskAdapter.setIsCurrentDay(isCurrentDay());
+
         // Add item spacing for better visual separation
         int spacing = getResources().getDimensionPixelSize(R.dimen.spacing_medium);
         rvTasks.addItemDecoration(new SpacingItemDecoration(spacing));
+    }
+
+    // ADD THIS NEW METHOD to check if the displayed date is current day
+    private boolean isCurrentDay() {
+        if (date == null) {
+            return true; // Default to current day if date is null
+        }
+
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+            LocalDate today = LocalDate.now();
+            return date.equals(today);
+        } else {
+            // Fallback for older Android versions
+            java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault());
+            String todayStr = sdf.format(new java.util.Date());
+            String dateStr = date.toString(); // This should work even on older versions
+            return todayStr.equals(dateStr);
+        }
     }
 
     private void loadTasks() {
@@ -190,23 +216,50 @@ public class DayTaskFragment extends Fragment {
 
         final String finalDateStr = dateStr;
 
-        // Check completion status for each task for the specific date
-        for (Task task : activeTasks) {
-            if (task.getTaskId() != null) {
-                getTaskCompletionForSpecificDate(childId, task.getTaskId(), finalDateStr, isCompleted -> {
-                    if (isCompleted) {
-                        task.setStatus("completed");
-                    } else {
-                        task.setStatus("active");
-                    }
-                    updateTaskListAfterCompletionCheck(activeTasks);
-                });
+        // UPDATED: Only check completion status if this is current day or past day
+        if (isCurrentDay() || isPastDay()) {
+            // Check completion status for each task for the specific date
+            for (Task task : activeTasks) {
+                if (task.getTaskId() != null) {
+                    getTaskCompletionForSpecificDate(childId, task.getTaskId(), finalDateStr, isCompleted -> {
+                        if (isCompleted) {
+                            task.setStatus("completed");
+                        } else {
+                            task.setStatus("active");
+                        }
+                        updateTaskListAfterCompletionCheck(activeTasks);
+                    });
+                }
             }
+        } else {
+            // For future days, all tasks are active (no completion checking needed)
+            for (Task task : activeTasks) {
+                task.setStatus("active");
+            }
+            updateTaskList(activeTasks);
         }
 
         // If no tasks have IDs, just update with active tasks
         if (activeTasks.stream().noneMatch(task -> task.getTaskId() != null)) {
             updateTaskList(activeTasks);
+        }
+    }
+
+    // ADD THIS NEW METHOD to check if the displayed date is in the past
+    private boolean isPastDay() {
+        if (date == null) {
+            return false;
+        }
+
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+            LocalDate today = LocalDate.now();
+            return date.isBefore(today);
+        } else {
+            // Fallback for older Android versions
+            java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault());
+            String todayStr = sdf.format(new java.util.Date());
+            String dateStr = date.toString();
+            return dateStr.compareTo(todayStr) < 0;
         }
     }
 
@@ -236,6 +289,9 @@ public class DayTaskFragment extends Fragment {
 
         // Add completed tasks to the end of the list for display
         tasks.addAll(completedTasks);
+
+        // UPDATED: Update adapter with current day status
+        taskAdapter.setIsCurrentDay(isCurrentDay());
         taskAdapter.notifyDataSetChanged();
     }
 
@@ -338,6 +394,12 @@ public class DayTaskFragment extends Fragment {
     }
 
     private void handleTaskCompletion(Task task) {
+        // UPDATED: Only allow task completion on current day
+        if (!isCurrentDay()) {
+            Toast.makeText(getContext(), "Tasks can only be completed on the current day", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
         boolean isCurrentlyCompleted = "completed".equals(task.getStatus());
 
         // Get the specific date for this fragment
@@ -497,22 +559,31 @@ public class DayTaskFragment extends Fragment {
             ivDialogTaskIcon.setImageResource(R.drawable.ic_task_default);
         }
 
-        // Set button based on completion status
+        // UPDATED: Show/hide action button based on current day
         boolean isCompleted = "completed".equals(task.getStatus());
-        if (isCompleted) {
-            btnDialogAction.setText("Mark as Incomplete");
-            btnDialogAction.setBackgroundResource(R.drawable.bg_button_incomplete);
-            btnDialogAction.setCompoundDrawablesWithIntrinsicBounds(R.drawable.ic_checkbox_unchecked, 0, 0, 0);
+        if (isCurrentDay()) {
+            // Show action button for current day
+            btnDialogAction.setVisibility(View.VISIBLE);
+            if (isCompleted) {
+                btnDialogAction.setText("Mark as Incomplete");
+                btnDialogAction.setBackgroundResource(R.drawable.bg_button_incomplete);
+                btnDialogAction.setCompoundDrawablesWithIntrinsicBounds(R.drawable.ic_checkbox_unchecked, 0, 0, 0);
+            } else {
+                btnDialogAction.setText("Mark as Complete");
+                btnDialogAction.setBackgroundResource(R.drawable.bg_button_complete);
+                btnDialogAction.setCompoundDrawablesWithIntrinsicBounds(R.drawable.ic_checkbox_checked, 0, 0, 0);
+            }
         } else {
-            btnDialogAction.setText("Mark as Complete");
-            btnDialogAction.setBackgroundResource(R.drawable.bg_button_complete);
-            btnDialogAction.setCompoundDrawablesWithIntrinsicBounds(R.drawable.ic_checkbox_checked, 0, 0, 0);
+            // Hide action button for future days
+            btnDialogAction.setVisibility(View.GONE);
         }
 
         // Set click listeners
         btnDialogAction.setOnClickListener(v -> {
-            dialog.dismiss();
-            handleTaskCompletion(task);
+            if (isCurrentDay()) {
+                dialog.dismiss();
+                handleTaskCompletion(task);
+            }
         });
 
         ivClose.setOnClickListener(v -> dialog.dismiss());

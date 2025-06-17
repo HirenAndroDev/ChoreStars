@@ -20,10 +20,10 @@ public class KidTaskAdapter extends RecyclerView.Adapter<KidTaskAdapter.KidTaskV
     private List<Task> taskList;
     private Context context;
     private OnTaskInteractionListener listener;
+    private boolean isCurrentDay = true; // ADD THIS FIELD to track if this is current day
 
     public interface OnTaskInteractionListener {
         void onTaskCompleted(Task task);
-
         void onTaskClicked(Task task);
     }
 
@@ -31,6 +31,12 @@ public class KidTaskAdapter extends RecyclerView.Adapter<KidTaskAdapter.KidTaskV
         this.taskList = taskList;
         this.context = context;
         this.listener = listener;
+    }
+
+    // ADD THIS METHOD to set whether this adapter is for current day
+    public void setIsCurrentDay(boolean isCurrentDay) {
+        this.isCurrentDay = isCurrentDay;
+        notifyDataSetChanged(); // Refresh the adapter to update checkbox visibility
     }
 
     @NonNull
@@ -89,17 +95,33 @@ public class KidTaskAdapter extends RecyclerView.Adapter<KidTaskAdapter.KidTaskV
             holder.ivTaskIcon.setImageResource(R.drawable.ic_task_default);
         }
 
-        // Set completion status
-        boolean isCompleted = "completed".equals(task.getStatus());
-        updateTaskAppearance(holder, isCompleted);
+        // UPDATED: Show/hide checkbox based on whether this is current day
+        if (isCurrentDay) {
+            // Show checkbox for current day
+            holder.ivTaskCheckbox.setVisibility(View.VISIBLE);
 
-        // Set click listeners
-        holder.ivTaskCheckbox.setOnClickListener(v -> {
-            if (listener != null) {
-                listener.onTaskCompleted(task);
-            }
-        });
+            // Set completion status
+            boolean isCompleted = "completed".equals(task.getStatus());
+            updateTaskAppearance(holder, isCompleted);
 
+            // Set click listener for checkbox (only for current day)
+            holder.ivTaskCheckbox.setOnClickListener(v -> {
+                if (listener != null) {
+                    listener.onTaskCompleted(task);
+                }
+            });
+        } else {
+            // Hide checkbox for future days
+            holder.ivTaskCheckbox.setVisibility(View.GONE);
+
+            // Update appearance for future day (no completion status)
+            updateTaskAppearanceForFutureDay(holder);
+
+            // Remove click listener for checkbox
+            holder.ivTaskCheckbox.setOnClickListener(null);
+        }
+
+        // Set click listener for task content (always available)
         holder.layoutTaskContent.setOnClickListener(v -> {
             if (listener != null) {
                 listener.onTaskClicked(task);
@@ -161,6 +183,18 @@ public class KidTaskAdapter extends RecyclerView.Adapter<KidTaskAdapter.KidTaskV
             holder.tvTaskNotes.setAlpha(1.0f);
             holder.tvReminderTime.setAlpha(1.0f);
         }
+    }
+
+    // ADD THIS NEW METHOD for future day appearance
+    private void updateTaskAppearanceForFutureDay(KidTaskViewHolder holder) {
+        // Use a neutral appearance for future days
+        holder.itemView.setBackgroundResource(R.drawable.bg_task_item_future); // You may need to create this drawable
+
+        // Full opacity for all text (future tasks are always "active")
+        holder.tvTaskName.setAlpha(1.0f);
+        holder.tvStarReward.setAlpha(1.0f);
+        holder.tvTaskNotes.setAlpha(1.0f);
+        holder.tvReminderTime.setAlpha(1.0f);
     }
 
     @Override
