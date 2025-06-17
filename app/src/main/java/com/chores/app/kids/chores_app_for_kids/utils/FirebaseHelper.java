@@ -798,102 +798,153 @@ public class FirebaseHelper {
                 });
     }
 
-    public static void redeemRewardWithSelectedChild(String rewardId, String selectedChildId, OnCompleteListener<Void> listener) {
-        // First check if selected child has enough stars
+    public static void redeemRewardWithSelectedChild(String rewardId, String childId, OnCompleteListener<Void> listener) {
+        Log.d("FirebaseHelper", "redeemRewardWithSelectedChild - RewardID: " + rewardId + ", ChildID: " + childId);
+
+        if (rewardId == null || rewardId.isEmpty() || childId == null || childId.isEmpty()) {
+            Log.e("FirebaseHelper", "Invalid parameters - RewardID: " + rewardId + ", ChildID: " + childId);
+            Exception exception = new Exception("Invalid reward ID or child ID");
+            com.google.android.gms.tasks.Task<Void> failedTask = com.google.android.gms.tasks.Tasks.forException(exception);
+            listener.onComplete(failedTask);
+            return;
+        }
+
+        // First, get the reward details
         db.collection("rewards").document(rewardId).get()
                 .addOnCompleteListener(rewardTask -> {
                     if (rewardTask.isSuccessful() && rewardTask.getResult().exists()) {
                         DocumentSnapshot rewardDoc = rewardTask.getResult();
-                        Long starCost = rewardDoc.getLong("starCost");
-                        int cost = starCost != null ? starCost.intValue() : 0;
-                        String familyId = rewardDoc.getString("familyId");
+                        Long starCostLong = rewardDoc.getLong("starCost");
+                        int starCost = starCostLong != null ? starCostLong.intValue() : 0;
                         String rewardName = rewardDoc.getString("name");
+                        String familyId = rewardDoc.getString("familyId");
 
-                        // Check selected child's star balance
-                        db.collection("users").document(selectedChildId).get()
-                                .addOnCompleteListener(userTask -> {
-                                    if (userTask.isSuccessful() && userTask.getResult().exists()) {
-                                        DocumentSnapshot userDoc = userTask.getResult();
-                                        Long balance = userDoc.getLong("starBalance");
-                                        int currentBalance = balance != null ? balance.intValue() : 0;
-                                        String childName = userDoc.getString("name");
+                        Log.d("FirebaseHelper", "Reward details - Name: " + rewardName + ", Cost: " + starCost + " stars");
 
-                                        if (currentBalance >= cost) {
-                                            // Create redemption record
-                                            Map<String, Object> redemptionData = new HashMap<>();
-                                            redemptionData.put("rewardId", rewardId);
-                                            redemptionData.put("userId", selectedChildId);
-                                            redemptionData.put("familyId", familyId);
-                                            redemptionData.put("redeemedAt", System.currentTimeMillis());
-                                            redemptionData.put("starsSpent", cost);
-                                            redemptionData.put("status", "pending");
+                        // Get the child's current star balance
+                        db.collection("users").document(childId).get()
+                                .addOnCompleteListener(childTask -> {
+                                    if (childTask.isSuccessful() && childTask.getResult().exists()) {
+                                        DocumentSnapshot childDoc = childTask.getResult();
+                                        Long currentBalanceLong = childDoc.getLong("starBalance");
+                                        int currentBalance = currentBalanceLong != null ? currentBalanceLong.intValue() : 0;
+                                        String childName = childDoc.getString("name");
 
-                                            // Create RedeemedReward object
-                                            Reward reward = documentToReward(rewardDoc);
-                                            RedeemedReward redeemedReward = new RedeemedReward(reward, selectedChildId, childName);
+                                        Log.d("FirebaseHelper", "Child current balance: " + currentBalance + " stars");
 
-                                            // Save to both collections
-                                            WriteBatch batch = db.batch();
-
-                                            // Old redemption record
-                                            DocumentReference redemptionRef = db.collection("rewardRedemptions").document();
-                                            batch.set(redemptionRef, redemptionData);
-
-                                            // New redeemed reward record
-                                            DocumentReference redeemedRef = db.collection("redeemedRewards").document();
-                                            Map<String, Object> redeemedData = new HashMap<>();
-                                            redeemedData.put("rewardId", redeemedReward.getRewardId());
-                                            redeemedData.put("rewardName", redeemedReward.getRewardName());
-                                            redeemedData.put("iconName", redeemedReward.getIconName());
-                                            redeemedData.put("iconUrl", redeemedReward.getIconUrl());
-                                            redeemedData.put("starCost", redeemedReward.getStarCost());
-                                            redeemedData.put("childId", redeemedReward.getChildId());
-                                            redeemedData.put("childName", redeemedReward.getChildName());
-                                            redeemedData.put("familyId", redeemedReward.getFamilyId());
-                                            redeemedData.put("redeemedAt", redeemedReward.getRedeemedAt());
-                                            redeemedData.put("timestamp", redeemedReward.getTimestamp());
-
-                                            batch.set(redeemedRef, redeemedData);
-
-                                            batch.commit().addOnCompleteListener(batchResult -> {
-                                                if (batchResult.isSuccessful()) {
-                                                    // Deduct stars from selected child's balance
-                                                    updateStarBalance(selectedChildId, -cost, familyId, "Redeemed: " + rewardName, null, rewardId);
-                                                    // Create success task for listener
-                                                    com.google.android.gms.tasks.Task<Void> successTask = com.google.android.gms.tasks.Tasks.forResult(null);
-                                                    listener.onComplete(successTask);
-                                                } else {
-                                                    // Create failure task for listener
-                                                    com.google.android.gms.tasks.Task<Void> failedTask = com.google.android.gms.tasks.Tasks.forException(
-                                                            batchResult.getException() != null ? batchResult.getException()
-                                                                    : new Exception("Failed to create redemption"));
-                                                    listener.onComplete(failedTask);
-                                                }
-                                            });
+                                        // Check if child has enough stars
+                                        if (currentBalance >= starCost) {
+                                            // Proceed with redemption using WriteBatch for atomicity
+                                            performAtomicRedemption(rewardDoc, childDoc, starCost, childId, childName, familyId, listener);
                                         } else {
-                                            // Insufficient balance - create failure task
-                                            com.google.android.gms.tasks.Task<Void> failedTask = com.google.android.gms.tasks.Tasks.forException(
-                                                    new Exception("Insufficient star balance. " + childName + " has " + currentBalance + " stars but needs " + cost + " stars."));
+                                            Log.w("FirebaseHelper", "Insufficient stars - Has: " + currentBalance + ", Needs: " + starCost);
+                                            Exception exception = new Exception("Insufficient star balance. You have " + currentBalance +
+                                                    " stars but need " + starCost + " stars.");
+                                            com.google.android.gms.tasks.Task<Void> failedTask = com.google.android.gms.tasks.Tasks.forException(exception);
                                             listener.onComplete(failedTask);
                                         }
                                     } else {
-                                        // User not found - create failure task
-                                        com.google.android.gms.tasks.Task<Void> failedTask = com.google.android.gms.tasks.Tasks.forException(
-                                                userTask.getException() != null ? userTask.getException()
-                                                        : new Exception("Child not found"));
+                                        Log.e("FirebaseHelper", "Child document not found or error", childTask.getException());
+                                        Exception exception = childTask.getException() != null ? childTask.getException() :
+                                                new Exception("Child profile not found");
+                                        com.google.android.gms.tasks.Task<Void> failedTask = com.google.android.gms.tasks.Tasks.forException(exception);
                                         listener.onComplete(failedTask);
                                     }
                                 });
                     } else {
-                        // Reward not found - create failure task
-                        com.google.android.gms.tasks.Task<Void> failedTask = com.google.android.gms.tasks.Tasks.forException(
-                                rewardTask.getException() != null ? rewardTask.getException()
-                                        : new Exception("Reward not found"));
+                        Log.e("FirebaseHelper", "Reward document not found or error", rewardTask.getException());
+                        Exception exception = rewardTask.getException() != null ? rewardTask.getException() :
+                                new Exception("Reward not found");
+                        com.google.android.gms.tasks.Task<Void> failedTask = com.google.android.gms.tasks.Tasks.forException(exception);
                         listener.onComplete(failedTask);
                     }
                 });
     }
 
+    private static void performAtomicRedemption(DocumentSnapshot rewardDoc, DocumentSnapshot childDoc,
+                                                int starCost, String childId, String childName,
+                                                String familyId, OnCompleteListener<Void> listener) {
+
+        long currentTimestamp = System.currentTimeMillis();
+        int currentBalance = childDoc.getLong("starBalance") != null ? childDoc.getLong("starBalance").intValue() : 0;
+        int newBalance = currentBalance - starCost;
+
+        Log.d("FirebaseHelper", "Performing atomic redemption - Deducting " + starCost +
+                " stars from " + currentBalance + " = " + newBalance);
+
+        WriteBatch batch = db.batch();
+
+        // 1. Update child's star balance
+        DocumentReference childRef = db.collection("users").document(childId);
+        batch.update(childRef, "starBalance", newBalance);
+        Log.d("FirebaseHelper", "Batch: Update child star balance to " + newBalance);
+
+        // 2. Create redemption record in redeemedRewards collection
+        DocumentReference redeemedRewardRef = db.collection("redeemedRewards").document();
+        Map<String, Object> redeemedRewardData = new HashMap<>();
+        redeemedRewardData.put("rewardId", rewardDoc.getId());
+        redeemedRewardData.put("rewardName", rewardDoc.getString("name"));
+        redeemedRewardData.put("iconName", rewardDoc.getString("iconName"));
+        redeemedRewardData.put("iconUrl", rewardDoc.getString("iconUrl"));
+        redeemedRewardData.put("starCost", starCost);
+        redeemedRewardData.put("childId", childId);
+        redeemedRewardData.put("childName", childName);
+        redeemedRewardData.put("familyId", familyId);
+        redeemedRewardData.put("redeemedAt", currentTimestamp);
+        redeemedRewardData.put("timestamp", currentTimestamp);
+
+        batch.set(redeemedRewardRef, redeemedRewardData);
+        Log.d("FirebaseHelper", "Batch: Create redeemed reward record");
+
+        // 3. Create transaction record for star tracking
+        DocumentReference transactionRef = db.collection("starTransactions").document();
+        Map<String, Object> transactionData = new HashMap<>();
+        transactionData.put("userId", childId);
+        transactionData.put("familyId", familyId);
+        transactionData.put("type", "reward_redemption");
+        transactionData.put("amount", -starCost); // Negative for deduction
+        transactionData.put("description", "Redeemed: " + rewardDoc.getString("name"));
+        transactionData.put("relatedId", rewardDoc.getId());
+        transactionData.put("timestamp", currentTimestamp);
+        transactionData.put("balanceBefore", currentBalance);
+        transactionData.put("balanceAfter", newBalance);
+
+        batch.set(transactionRef, transactionData);
+        Log.d("FirebaseHelper", "Batch: Create star transaction record");
+
+        // 4. Optional: Create legacy redemption record for compatibility
+        DocumentReference legacyRedemptionRef = db.collection("rewardRedemptions").document();
+        Map<String, Object> legacyRedemptionData = new HashMap<>();
+        legacyRedemptionData.put("rewardId", rewardDoc.getId());
+        legacyRedemptionData.put("userId", childId);
+        legacyRedemptionData.put("familyId", familyId);
+        legacyRedemptionData.put("redeemedAt", currentTimestamp);
+        legacyRedemptionData.put("starsSpent", starCost);
+        legacyRedemptionData.put("status", "completed");
+
+        batch.set(legacyRedemptionRef, legacyRedemptionData);
+        Log.d("FirebaseHelper", "Batch: Create legacy redemption record");
+
+        // Commit the batch
+        batch.commit().addOnCompleteListener(batchTask -> {
+            if (batchTask.isSuccessful()) {
+                Log.d("FirebaseHelper", "Atomic redemption completed successfully - " +
+                        starCost + " stars deducted from " + childName);
+
+                // Create success task
+                com.google.android.gms.tasks.Task<Void> successTask = com.google.android.gms.tasks.Tasks.forResult(null);
+                listener.onComplete(successTask);
+            } else {
+                Log.e("FirebaseHelper", "Atomic redemption failed", batchTask.getException());
+
+                // Create failure task
+                Exception exception = batchTask.getException() != null ? batchTask.getException() :
+                        new Exception("Failed to complete reward redemption");
+                com.google.android.gms.tasks.Task<Void> failedTask = com.google.android.gms.tasks.Tasks.forException(exception);
+                listener.onComplete(failedTask);
+            }
+        });
+    }
     // Enhanced documentToRedeemedReward method with better error handling
     private static RedeemedReward documentToRedeemedReward(DocumentSnapshot doc) {
         try {
@@ -2422,6 +2473,34 @@ public class FirebaseHelper {
                 });
     }
 
+    // Helper method to get child profile with callback
+    public static void getChildProfile(String childId, ChildProfileCallback callback) {
+        if (childId == null || childId.isEmpty()) {
+            callback.onError("Invalid child ID");
+            return;
+        }
 
+        db.collection("users").document(childId).get()
+                .addOnCompleteListener(task -> {
+                    if (task.isSuccessful() && task.getResult().exists()) {
+                        DocumentSnapshot doc = task.getResult();
+                        ChildProfile childProfile = documentToChildProfile(doc);
+                        if (childProfile != null) {
+                            callback.onChildProfileLoaded(childProfile);
+                        } else {
+                            callback.onError("Failed to parse child profile");
+                        }
+                    } else {
+                        String error = task.getException() != null ? task.getException().getMessage() : "Child not found";
+                        callback.onError(error);
+                    }
+                });
+    }
+
+    // Callback interface for child profile
+    public interface ChildProfileCallback {
+        void onChildProfileLoaded(ChildProfile childProfile);
+        void onError(String error);
+    }
 
 }

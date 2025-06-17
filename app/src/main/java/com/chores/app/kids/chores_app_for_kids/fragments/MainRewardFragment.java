@@ -208,40 +208,28 @@ public class MainRewardFragment extends Fragment implements KidProfilesParentDia
     }
 
     public void updateKidProfileUI() {
-        if (selectedKid == null || !isAdded() || getActivity() == null) return;
-
-        // Reload the child's current data from Firebase to get updated star balance
-        FirebaseHelper.getUserById(selectedKid.getChildId(), new FirebaseHelper.CurrentUserCallback() {
-            @Override
-            public void onUserLoaded(User user) {
-                if (isAdded() && getActivity() != null) {
-                    getActivity().runOnUiThread(() -> {
-                        // Update the selected child profile with fresh data
-                        selectedKid.setStarBalance(user.getStarBalance());
-
-                        // Update UI
-                        tvKidName.setText(selectedKid.getName());
-                        tvStarsBalance.setText(String.valueOf(selectedKid.getStarBalance()));
-
-                        // Load profile image
-                        if (selectedKid.getProfileImageUrl() != null && !selectedKid.getProfileImageUrl().isEmpty()) {
-                            Glide.with(MainRewardFragment.this)
-                                    .load(selectedKid.getProfileImageUrl())
-                                    .circleCrop()
-                                    .into(ivKidProfile);
-                        } else {
-                            ivKidProfile.setImageResource(R.drawable.default_avatar);
-                        }
-                    });
+        if (selectedKid != null) {
+            // Refresh the selected child's data from server
+            FirebaseHelper.getChildProfile(selectedKid.getChildId(), new FirebaseHelper.ChildProfileCallback() {
+                @Override
+                public void onChildProfileLoaded(ChildProfile updatedChild) {
+                    if (getActivity() != null) {
+                        getActivity().runOnUiThread(() -> {
+                            selectedKid.setStarBalance(updatedChild.getStarBalance());
+                            if (tvStarsBalance != null) {
+                                tvStarsBalance.setText(String.valueOf(updatedChild.getStarBalance()));
+                            }
+                            Log.d("MainRewardFragment", "Updated UI with fresh star balance: " + updatedChild.getStarBalance());
+                        });
+                    }
                 }
-            }
 
-            @Override
-            public void onError(String error) {
-                // Fallback to original updateKidProfileUI method
-                updateKidProfileUIOriginal();
-            }
-        });
+                @Override
+                public void onError(String error) {
+                    Log.w("MainRewardFragment", "Could not refresh child profile: " + error);
+                }
+            });
+        }
     }
 
     private void updateKidProfileUIOriginal() {
@@ -339,4 +327,20 @@ public class MainRewardFragment extends Fragment implements KidProfilesParentDia
             Log.w(TAG, "Error notifying child fragments of selection change", e);
         }
     }
+
+    public void updateSelectedChildStarBalance(int newBalance) {
+        Log.d("MainRewardFragment", "updateSelectedChildStarBalance called with: " + newBalance);
+
+        if (selectedKid != null) {
+            selectedKid.setStarBalance(newBalance);
+
+            // Update the UI
+            if (tvStarsBalance != null) {
+                tvStarsBalance.setText(String.valueOf(newBalance));
+            }
+
+            Log.d("MainRewardFragment", "Updated selected child star balance to: " + newBalance);
+        }
+    }
+
 }

@@ -34,6 +34,8 @@ import android.util.Log;
 
 public class RewardsFragment extends Fragment {
 
+    private static final String TAG = "RewardsFragment";
+
     private RecyclerView recyclerViewRewards;
     private FloatingActionButton fabAddReward;
     private CardView btnAddReward;
@@ -44,8 +46,7 @@ public class RewardsFragment extends Fragment {
     private String familyId;
     private String childId;
 
-    // Store the selected child directly in this fragment
-    private ChildProfile selectedChild;
+    private MainRewardFragment parentFragment;
 
     @Nullable
     @Override
@@ -55,7 +56,11 @@ public class RewardsFragment extends Fragment {
         initializeViews(view);
         setupRecyclerView();
         setupClickListeners();
-
+        // Don't load rewards immediately, wait for selected child
+        // Get parent fragment reference
+        if (getParentFragment() instanceof MainRewardFragment) {
+            parentFragment = (MainRewardFragment) getParentFragment();
+        }
         return view;
     }
 
@@ -63,23 +68,28 @@ public class RewardsFragment extends Fragment {
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
 
-        Log.d("RewardsFragment", "onViewCreated called");
+        Log.d(TAG, "onViewCreated called");
 
-        // Initial load - wait for parent to notify us of selected child
-        // Don't load rewards immediately
+        // Ensure parent fragment reference is set
+        if (getParentFragment() instanceof MainRewardFragment) {
+            parentFragment = (MainRewardFragment) getParentFragment();
+            Log.d(TAG, "Parent fragment set successfully");
+        } else {
+            Log.w(TAG, "Parent fragment is not MainRewardFragment: " +
+                    (getParentFragment() != null ? getParentFragment().getClass().getSimpleName() : "null"));
+        }
+
+        // Load rewards after view is created
+        loadRewards();
+        loadUserStarBalance();
     }
 
     @Override
     public void onResume() {
         super.onResume();
-        // Only load if we have a selected child
-        if (selectedChild != null) {
-            loadRewards();
-            loadUserStarBalance();
-        } else {
-            // Show message asking to select a child
-            updateEmptyState(true, "Please select a child to view rewards");
-        }
+        // Load rewards when fragment becomes visible
+        loadRewards();
+        loadUserStarBalance();
     }
 
     private void initializeViews(View view) {
@@ -91,7 +101,7 @@ public class RewardsFragment extends Fragment {
         tvStarBalance = view.findViewById(R.id.tv_star_balance);
 
         familyId = AuthHelper.getFamilyId(getContext());
-        Log.d("RewardsFragment", "initializeViews - familyId from AuthHelper: " + familyId);
+        Log.d(TAG, "initializeViews - familyId from AuthHelper: " + familyId);
     }
 
     private void setupRecyclerView() {
@@ -101,11 +111,13 @@ public class RewardsFragment extends Fragment {
             @Override
             public void onRewardClick(Reward reward) {
                 // Handle reward item click (maybe show details)
+                Log.d(TAG, "Reward clicked: " + reward.getName());
             }
 
             @Override
             public void onRedeemClick(Reward reward) {
                 // Handle redeem button click
+                Log.d(TAG, "Redeem clicked for reward: " + reward.getName() + " (Cost: " + reward.getStarCost() + " stars)");
                 handleRedeemClick(reward);
             }
         });
@@ -123,63 +135,23 @@ public class RewardsFragment extends Fragment {
         startActivity(intent);
     }
 
-    // Method to get the MainRewardFragment and its selected child
-    private MainRewardFragment getMainRewardFragment() {
-        Fragment parentFragment = getParentFragment();
-        if (parentFragment instanceof MainRewardFragment) {
-            return (MainRewardFragment) parentFragment;
-        }
-
-        // Try to find it through the activity's fragment manager
-        // This handles the ViewPager2 case where getParentFragment() returns null
-        try {
-            if (getActivity() != null) {
-                List<Fragment> fragments = getActivity().getSupportFragmentManager().getFragments();
-                for (Fragment fragment : fragments) {
-                    if (fragment instanceof MainRewardFragment) {
-                        return (MainRewardFragment) fragment;
-                    }
-                }
-            }
-        } catch (Exception e) {
-            Log.w("RewardsFragment", "Error finding MainRewardFragment", e);
-        }
-
-        return null;
-    }
-
     private ChildProfile getSelectedChild() {
-        // First, try to use our stored selected child
-        if (selectedChild != null) {
-            Log.d("RewardsFragment", "getSelectedChild - returning stored: " + selectedChild.getName());
-            return selectedChild;
-        }
-
-        // Try to get from MainRewardFragment
-        MainRewardFragment mainRewardFragment = getMainRewardFragment();
-        if (mainRewardFragment != null) {
-            ChildProfile child = mainRewardFragment.getSelectedKid();
-            if (child != null) {
-                selectedChild = child; // Store it locally
-                if (!child.getChildId().equals(childId)) {
-                    childId = child.getChildId();
+        if (parentFragment != null) {
+            ChildProfile selectedKid = parentFragment.getSelectedKid();
+            if (selectedKid != null) {
+                if (!selectedKid.getChildId().equals(childId)) {
+                    childId = selectedKid.getChildId();
                 }
-                Log.d("RewardsFragment", "getSelectedChild - got from MainRewardFragment: " + child.getName());
-                return child;
-            } else {
-                Log.d("RewardsFragment", "getSelectedChild - MainRewardFragment.getSelectedKid() returned null");
+                return selectedKid;
             }
-        } else {
-            Log.d("RewardsFragment", "getSelectedChild - MainRewardFragment not found");
         }
-
         return null;
     }
 
     private void loadRewards() {
         ChildProfile selectedChild = getSelectedChild();
 
-        Log.d("RewardsFragment", "loadRewards() called - selectedChild: " +
+        Log.d(TAG, "loadRewards() called - selectedChild: " +
                 (selectedChild != null ? selectedChild.getName() : "null"));
 
         if (selectedChild == null) {
@@ -192,7 +164,7 @@ public class RewardsFragment extends Fragment {
             familyId = selectedChild.getFamilyId();
         }
 
-        Log.d("RewardsFragment", "Using familyId: " + familyId);
+        Log.d(TAG, "Using familyId: " + familyId);
 
         if (familyId == null || familyId.isEmpty()) {
             // Try to get familyId from current user
@@ -201,17 +173,17 @@ public class RewardsFragment extends Fragment {
                 public void onUserLoaded(com.chores.app.kids.chores_app_for_kids.models.User user) {
                     if (user.getFamilyId() != null && !user.getFamilyId().isEmpty()) {
                         familyId = user.getFamilyId();
-                        Log.d("RewardsFragment", "Got familyId from current user: " + familyId);
+                        Log.d(TAG, "Got familyId from current user: " + familyId);
                         loadRewardsForSelectedChild();
                     } else {
-                        Log.e("RewardsFragment", "No family found for current user");
+                        Log.e(TAG, "No family found for current user");
                         updateEmptyState(true, "No family found");
                     }
                 }
 
                 @Override
                 public void onError(String error) {
-                    Log.e("RewardsFragment", "Error loading current user: " + error);
+                    Log.e(TAG, "Error loading current user: " + error);
                     updateEmptyState(true, "Error loading family data");
                 }
             });
@@ -224,35 +196,30 @@ public class RewardsFragment extends Fragment {
     private void loadRewardsForSelectedChild() {
         ChildProfile selectedChild = getSelectedChild();
         if (selectedChild == null) {
-            Log.e("RewardsFragment", "loadRewardsForSelectedChild: selectedChild is null");
+            Log.e(TAG, "loadRewardsForSelectedChild: selectedChild is null");
             updateEmptyState(true, "Please select a child to view rewards");
             return;
         }
 
-        String childId = selectedChild.getChildId();
-        Log.d("RewardsFragment", "Loading rewards for childId: " + childId +
-                ", familyId: " + familyId + ", child: " + selectedChild.getName());
+        Log.d(TAG, "Loading rewards for familyId: " + familyId +
+                ", child: " + selectedChild.getName());
 
-        // Load rewards specifically assigned to this child
-        FirebaseHelper.getRewardsForChild(childId, familyId, new FirebaseHelper.RewardsCallback() {
+        // Load all rewards for the family
+        FirebaseHelper.getFamilyRewards(familyId, new FirebaseHelper.RewardsCallback() {
             @Override
             public void onRewardsLoaded(List<Reward> rewards) {
-                Log.d("RewardsFragment", "Child-specific rewards loaded successfully, count: " + rewards.size());
+                Log.d(TAG, "Rewards loaded successfully, count: " + rewards.size());
                 if (getActivity() != null) {
                     getActivity().runOnUiThread(() -> {
                         rewardList.clear();
                         rewardList.addAll(rewards);
                         rewardAdapter.notifyDataSetChanged();
-
-                        String emptyMessage = rewards.isEmpty() ?
-                                "No rewards assigned to " + selectedChild.getName() + " yet" :
-                                "";
-                        updateEmptyState(rewards.isEmpty(), emptyMessage);
+                        updateEmptyState(rewards.isEmpty(), "No rewards available for " + selectedChild.getName());
 
                         // Log each reward for debugging
                         for (Reward reward : rewards) {
-                            Log.d("RewardsFragment", "Reward for " + selectedChild.getName() + ": " +
-                                    reward.getName() + ", Stars: " + reward.getStarCost());
+                            Log.d(TAG, "Reward: " + reward.getName() +
+                                    ", Stars: " + reward.getStarCost());
                         }
                     });
                 }
@@ -260,7 +227,7 @@ public class RewardsFragment extends Fragment {
 
             @Override
             public void onError(String error) {
-                Log.e("RewardsFragment", "Error loading child-specific rewards: " + error);
+                Log.e(TAG, "Error loading rewards: " + error);
                 if (getActivity() != null) {
                     getActivity().runOnUiThread(() -> {
                         updateEmptyState(true, "Error loading rewards: " + error);
@@ -306,56 +273,166 @@ public class RewardsFragment extends Fragment {
         String selectedChildName = selectedChild.getName();
         int selectedChildStarBalance = selectedChild.getStarBalance();
 
+        Log.d(TAG, "handleRedeemClick - Child: " + selectedChildName +
+                ", Current Stars: " + selectedChildStarBalance +
+                ", Reward Cost: " + reward.getStarCost());
+
         // Check if selected child has enough stars
         if (selectedChildStarBalance >= reward.getStarCost()) {
-            // Child has enough stars, proceed with redemption
-            FirebaseHelper.redeemRewardWithSelectedChild(reward.getRewardId(), selectedChildId, task -> {
-                if (getActivity() != null) {
+            // Show confirmation dialog before redemption
+            showRedemptionConfirmationDialog(reward, selectedChild);
+        } else {
+            int starsNeeded = reward.getStarCost() - selectedChildStarBalance;
+            Toast.makeText(getContext(), selectedChildName + " needs " + starsNeeded +
+                    " more stars for this reward!", Toast.LENGTH_LONG).show();
+            Log.d(TAG, "Insufficient stars - Need " + starsNeeded + " more stars");
+        }
+    }
+
+    private void showRedemptionConfirmationDialog(Reward reward, ChildProfile selectedChild) {
+        if (getContext() == null) return;
+
+        androidx.appcompat.app.AlertDialog.Builder builder = new androidx.appcompat.app.AlertDialog.Builder(getContext());
+        builder.setTitle("Redeem Reward");
+        builder.setMessage("Are you sure you want to redeem '" + reward.getName() +
+                "' for " + reward.getStarCost() + " stars?");
+
+        builder.setPositiveButton("Yes", (dialog, which) -> {
+            processRewardRedemption(reward, selectedChild);
+        });
+
+        builder.setNegativeButton("Cancel", (dialog, which) -> {
+            dialog.dismiss();
+        });
+
+        builder.show();
+    }
+
+    private void processRewardRedemption(Reward reward, ChildProfile selectedChild) {
+        String selectedChildId = selectedChild.getChildId();
+        String selectedChildName = selectedChild.getName();
+
+        Log.d(TAG, "Processing reward redemption for " + selectedChildName +
+                " - Reward: " + reward.getName() + " (" + reward.getStarCost() + " stars)");
+
+        // Show loading state (optional)
+        if (getContext() != null) {
+            Toast.makeText(getContext(), "Redeeming reward...", Toast.LENGTH_SHORT).show();
+        }
+
+        // Child has enough stars, proceed with redemption
+        FirebaseHelper.redeemRewardWithSelectedChild(reward.getRewardId(), selectedChildId, task -> {
+            if (getActivity() != null) {
+                getActivity().runOnUiThread(() -> {
+                    if (task.isSuccessful()) {
+                        Log.d(TAG, "Reward redeemed successfully for " + selectedChildName);
+
+                        // Calculate new star balance
+                        int newStarBalance = selectedChild.getStarBalance() - reward.getStarCost();
+                        Log.d(TAG, "Star balance updated: " + selectedChild.getStarBalance() +
+                                " -> " + newStarBalance);
+
+                        // Update the selected child's star balance locally
+                        selectedChild.setStarBalance(newStarBalance);
+
+                        // Show success message
+                        Toast.makeText(getContext(),
+                                "🎉 " + reward.getName() + " redeemed successfully for " + selectedChildName + "! " +
+                                        "Stars remaining: " + newStarBalance,
+                                Toast.LENGTH_LONG).show();
+
+                        // Update UI elements
+                        updateStarBalanceDisplay(newStarBalance);
+
+                        // Refresh the selected child's star balance in parent fragment
+                        updateParentFragmentStarBalance();
+
+                        // Refresh rewards list to update availability based on new balance
+                        loadRewards();
+
+                        // Update star balance from server to ensure consistency
+                        refreshChildStarBalanceFromServer(selectedChildId);
+
+                        // Refresh redeem history in the other tab
+                        refreshRedeemHistoryTab();
+
+                    } else {
+                        String errorMessage = task.getException() != null ?
+                                task.getException().getMessage() : "Failed to redeem reward";
+                        Log.e(TAG, "Failed to redeem reward: " + errorMessage);
+                        Toast.makeText(getContext(), "Failed to redeem reward: " + errorMessage,
+                                Toast.LENGTH_LONG).show();
+                    }
+                });
+            }
+        });
+    }
+
+    private void updateStarBalanceDisplay(int newBalance) {
+        if (tvStarBalance != null) {
+            tvStarBalance.setText(String.valueOf(newBalance));
+            Log.d(TAG, "Updated star balance display to: " + newBalance);
+        }
+    }
+
+    private void updateParentFragmentStarBalance() {
+        try {
+            if (parentFragment != null) {
+                parentFragment.updateKidProfileUI();
+                Log.d(TAG, "Requested parent fragment to update kid profile UI");
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error updating parent fragment star balance", e);
+        }
+    }
+
+    private void refreshChildStarBalanceFromServer(String childId) {
+        // Refresh the child's star balance from the server to ensure accuracy
+        FirebaseHelper.getChildProfile(childId, new FirebaseHelper.ChildProfileCallback() {
+            @Override
+            public void onChildProfileLoaded(ChildProfile childProfile) {
+                if (getActivity() != null && childProfile != null) {
                     getActivity().runOnUiThread(() -> {
-                        if (task.isSuccessful()) {
-                            Toast.makeText(getContext(), "Reward redeemed successfully for " + selectedChildName + "!", Toast.LENGTH_SHORT).show();
-
-                            // Refresh the selected child's star balance in MainRewardFragment
-                            MainRewardFragment mainRewardFragment = getMainRewardFragment();
-                            if (mainRewardFragment != null) {
-                                mainRewardFragment.updateKidProfileUI();
-                            }
-
-                            // Refresh rewards list to update availability
-                            loadRewards();
-
-                            // Refresh redeem history in the other tab
-                            refreshRedeemHistoryTab();
-                        } else {
-                            String errorMessage = task.getException() != null ?
-                                    task.getException().getMessage() : "Failed to redeem reward";
-                            Toast.makeText(getContext(), errorMessage, Toast.LENGTH_SHORT).show();
+                        // Update the selected child in parent fragment
+                        if (parentFragment != null) {
+                            parentFragment.updateSelectedChildStarBalance(childProfile.getStarBalance());
                         }
+
+                        // Update local display
+                        updateStarBalanceDisplay(childProfile.getStarBalance());
+
+                        Log.d(TAG, "Refreshed star balance from server: " + childProfile.getStarBalance());
                     });
                 }
-            });
-        } else {
-            Toast.makeText(getContext(), selectedChildName + " needs " +
-                            (reward.getStarCost() - selectedChildStarBalance) + " more stars for this reward!",
-                    Toast.LENGTH_LONG).show();
-        }
+            }
+
+            @Override
+            public void onError(String error) {
+                Log.w(TAG, "Could not refresh star balance from server: " + error);
+            }
+        });
     }
 
     private void refreshRedeemHistoryTab() {
         // Try to refresh the redeem history tab
         try {
-            if (getActivity() != null) {
-                androidx.fragment.app.FragmentManager fragmentManager = getActivity().getSupportFragmentManager();
+            if (parentFragment != null && parentFragment.getView() != null) {
+                androidx.viewpager2.widget.ViewPager2 viewPager = parentFragment.getView().findViewById(R.id.viewPager);
+                if (viewPager != null) {
+                    androidx.fragment.app.FragmentActivity activity = parentFragment.requireActivity();
+                    androidx.fragment.app.FragmentManager fragmentManager = activity.getSupportFragmentManager();
 
-                // Find the RewardRedeemFragment
-                String fragmentTag = "f" + 1; // ViewPager2 uses "f" + position as tag
-                Fragment fragment = fragmentManager.findFragmentByTag(fragmentTag);
-                if (fragment instanceof RewardRedeemFragment) {
-                    ((RewardRedeemFragment) fragment).refreshRedeemedRewards();
+                    // Find the RewardRedeemFragment
+                    String fragmentTag = "f" + 1; // ViewPager2 uses "f" + position as tag
+                    Fragment fragment = fragmentManager.findFragmentByTag(fragmentTag);
+                    if (fragment instanceof RewardRedeemFragment) {
+                        ((RewardRedeemFragment) fragment).refreshRedeemedRewards();
+                        Log.d(TAG, "Refreshed redeem history tab");
+                    }
                 }
             }
         } catch (Exception e) {
-            Log.w("RewardsFragment", "Error refreshing redeem history tab", e);
+            Log.w(TAG, "Could not refresh redeem history tab", e);
         }
     }
 
@@ -363,18 +440,15 @@ public class RewardsFragment extends Fragment {
         // Load star balance for the selected child
         ChildProfile selectedChild = getSelectedChild();
         if (selectedChild != null && tvStarBalance != null) {
-            tvStarBalance.setText(String.valueOf(selectedChild.getStarBalance()));
+            int starBalance = selectedChild.getStarBalance();
+            tvStarBalance.setText(String.valueOf(starBalance));
+            Log.d(TAG, "Loaded star balance for " + selectedChild.getName() + ": " + starBalance);
         }
     }
 
     // Public method to refresh rewards when child selection changes
-    // This is called by MainRewardFragment when the selected child changes
     public void onChildSelectionChanged() {
-        Log.d("RewardsFragment", "onChildSelectionChanged called");
-
-        // Clear the stored selected child so it gets refreshed
-        selectedChild = null;
-
+        Log.d(TAG, "Child selection changed");
         if (getView() != null && isAdded()) {
             loadRewards();
             loadUserStarBalance();
@@ -391,13 +465,9 @@ public class RewardsFragment extends Fragment {
         }
     }
 
-    // Method to set the selected child directly (called by MainRewardFragment)
-    public void setSelectedChild(ChildProfile child) {
-        Log.d("RewardsFragment", "setSelectedChild called with: " +
-                (child != null ? child.getName() : "null"));
-        this.selectedChild = child;
-        if (child != null) {
-            this.childId = child.getChildId();
-        }
+    // Public method to update star balance when it changes
+    public void updateStarBalance(int newBalance) {
+        Log.d(TAG, "updateStarBalance called with: " + newBalance);
+        updateStarBalanceDisplay(newBalance);
     }
 }
