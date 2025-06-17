@@ -2497,6 +2497,43 @@ public class FirebaseHelper {
                 });
     }
 
+    // ADD THIS METHOD - This is what's missing and causing the compilation error
+    private static ChildProfile documentToChildProfile(DocumentSnapshot doc) {
+        try {
+            if (!doc.exists()) {
+                Log.w("FirebaseHelper", "Document does not exist: " + doc.getId());
+                return null;
+            }
+
+            ChildProfile profile = new ChildProfile();
+            profile.setChildId(doc.getId());
+            profile.setName(doc.getString("name"));
+            profile.setFamilyId(doc.getString("familyId"));
+            profile.setInviteCode(doc.getString("inviteCode"));
+
+            Long expiry = doc.getLong("inviteCodeExpiry");
+            profile.setInviteCodeExpiry(expiry != null ? expiry : 0);
+
+            profile.setProfileImageUrl(doc.getString("profileImageUrl"));
+
+            Long balance = doc.getLong("starBalance");
+            profile.setStarBalance(balance != null ? balance.intValue() : 0);
+
+            Boolean active = doc.getBoolean("isActive");
+            profile.setActive(active == null || active);
+
+            Long created = doc.getLong("createdAt");
+            profile.setCreatedAt(created != null ? created : System.currentTimeMillis());
+
+            return profile;
+        } catch (Exception e) {
+            Log.e("FirebaseHelper", "Error converting document to ChildProfile: " + doc.getId(), e);
+            return null;
+        }
+    }
+
+
+
     // Callback interface for child profile
     public interface ChildProfileCallback {
         void onChildProfileLoaded(ChildProfile childProfile);

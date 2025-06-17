@@ -47,6 +47,7 @@ public class RewardsFragment extends Fragment {
     private String childId;
 
     private MainRewardFragment parentFragment;
+    private ChildProfile selectedChild; // Add this field to store selected child
 
     @Nullable
     @Override
@@ -135,13 +136,29 @@ public class RewardsFragment extends Fragment {
         startActivity(intent);
     }
 
+    // ADD THIS METHOD - This is what's missing and causing the compilation error
+    public void setSelectedChild(ChildProfile childProfile) {
+        Log.d(TAG, "setSelectedChild called with: " + (childProfile != null ? childProfile.getName() : "null"));
+        this.selectedChild = childProfile;
+        if (childProfile != null) {
+            this.childId = childProfile.getChildId();
+        }
+    }
+
     private ChildProfile getSelectedChild() {
+        // First check if we have a locally stored selected child
+        if (selectedChild != null) {
+            return selectedChild;
+        }
+
+        // Otherwise get from parent fragment
         if (parentFragment != null) {
             ChildProfile selectedKid = parentFragment.getSelectedKid();
             if (selectedKid != null) {
                 if (!selectedKid.getChildId().equals(childId)) {
                     childId = selectedKid.getChildId();
                 }
+                selectedChild = selectedKid; // Cache it locally
                 return selectedKid;
             }
         }
@@ -334,6 +351,10 @@ public class RewardsFragment extends Fragment {
 
                         // Update the selected child's star balance locally
                         selectedChild.setStarBalance(newStarBalance);
+                        // Also update our local copy
+                        if (this.selectedChild != null) {
+                            this.selectedChild.setStarBalance(newStarBalance);
+                        }
 
                         // Show success message
                         Toast.makeText(getContext(),
@@ -393,6 +414,9 @@ public class RewardsFragment extends Fragment {
             public void onChildProfileLoaded(ChildProfile childProfile) {
                 if (getActivity() != null && childProfile != null) {
                     getActivity().runOnUiThread(() -> {
+                        // Update our local selected child
+                        selectedChild = childProfile;
+
                         // Update the selected child in parent fragment
                         if (parentFragment != null) {
                             parentFragment.updateSelectedChildStarBalance(childProfile.getStarBalance());
@@ -469,5 +493,9 @@ public class RewardsFragment extends Fragment {
     public void updateStarBalance(int newBalance) {
         Log.d(TAG, "updateStarBalance called with: " + newBalance);
         updateStarBalanceDisplay(newBalance);
+        // Also update our local selected child if we have one
+        if (selectedChild != null) {
+            selectedChild.setStarBalance(newBalance);
+        }
     }
 }
