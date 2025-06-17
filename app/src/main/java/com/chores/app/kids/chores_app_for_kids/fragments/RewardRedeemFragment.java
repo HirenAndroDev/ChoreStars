@@ -1,6 +1,7 @@
 package com.chores.app.kids.chores_app_for_kids.fragments;
 
 import android.os.Bundle;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -15,28 +16,27 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.chores.app.kids.chores_app_for_kids.R;
 import com.chores.app.kids.chores_app_for_kids.adapters.RedeemHistoryAdapter;
-import com.chores.app.kids.chores_app_for_kids.models.RedeemedReward;
 import com.chores.app.kids.chores_app_for_kids.models.ChildProfile;
-import com.chores.app.kids.chores_app_for_kids.fragments.MainRewardFragment;
+import com.chores.app.kids.chores_app_for_kids.models.RedeemedReward;
 import com.chores.app.kids.chores_app_for_kids.utils.AuthHelper;
 import com.chores.app.kids.chores_app_for_kids.utils.FirebaseHelper;
 
 import java.util.ArrayList;
 import java.util.List;
 
-import android.util.Log;
-
 public class RewardRedeemFragment extends Fragment {
+
+    private static final String TAG = "RewardRedeemFragment";
 
     private RecyclerView recyclerViewRedeemHistory;
     private LinearLayout layoutEmptyState, layoutLoading;
     private RedeemHistoryAdapter redeemHistoryAdapter;
     private List<RedeemedReward> redeemedRewardList;
     private String familyId;
-    private String childId;
-
-    // Store the selected child directly in this fragment
+    private String currentUserId;
+    private boolean isChildAccount;
     private ChildProfile selectedChild;
+    private String childId;
 
     public RewardRedeemFragment() {
         // Required empty public constructor
@@ -53,12 +53,10 @@ public class RewardRedeemFragment extends Fragment {
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
 
-        Log.d("RewardRedeemFragment", "onViewCreated called");
-
+        Log.d(TAG, "onViewCreated called");
         initializeViews(view);
         setupRecyclerView();
-
-        // Don't load rewards immediately, wait for parent to notify us of selected child
+        loadRedeemedRewards();
     }
 
     private void initializeViews(View view) {
@@ -66,8 +64,14 @@ public class RewardRedeemFragment extends Fragment {
         layoutEmptyState = view.findViewById(R.id.layout_empty_state);
         layoutLoading = view.findViewById(R.id.layout_loading);
 
+        // Get user information from AuthHelper
         familyId = AuthHelper.getFamilyId(getContext());
-        Log.d("RewardRedeemFragment", "initializeViews - familyId from AuthHelper: " + familyId);
+        isChildAccount = AuthHelper.isChildAccount(getContext());
+        currentUserId = AuthHelper.getCurrentUserId(getContext());
+
+        Log.d(TAG, "Family ID: " + familyId);
+        Log.d(TAG, "Is Child Account: " + isChildAccount);
+        Log.d(TAG, "Current User ID: " + currentUserId);
     }
 
     private void setupRecyclerView() {
@@ -75,251 +79,212 @@ public class RewardRedeemFragment extends Fragment {
         redeemHistoryAdapter = new RedeemHistoryAdapter(redeemedRewardList, getContext());
         recyclerViewRedeemHistory.setLayoutManager(new LinearLayoutManager(getContext()));
         recyclerViewRedeemHistory.setAdapter(redeemHistoryAdapter);
-    }
-
-    // Method to get the MainRewardFragment and its selected child
-    private MainRewardFragment getMainRewardFragment() {
-        Fragment parentFragment = getParentFragment();
-        if (parentFragment instanceof MainRewardFragment) {
-            return (MainRewardFragment) parentFragment;
-        }
-
-        // Try to find it through the activity's fragment manager
-        // This handles the ViewPager2 case where getParentFragment() returns null
-        try {
-            if (getActivity() != null) {
-                List<Fragment> fragments = getActivity().getSupportFragmentManager().getFragments();
-                for (Fragment fragment : fragments) {
-                    if (fragment instanceof MainRewardFragment) {
-                        return (MainRewardFragment) fragment;
-                    }
-                }
-            }
-        } catch (Exception e) {
-            Log.w("RewardRedeemFragment", "Error finding MainRewardFragment", e);
-        }
-
-        return null;
-    }
-
-    private ChildProfile getSelectedChild() {
-        // First, try to use our stored selected child
-        if (selectedChild != null) {
-            Log.d("RewardRedeemFragment", "getSelectedChild - returning stored: " + selectedChild.getName());
-            return selectedChild;
-        }
-
-        // Try to get from MainRewardFragment
-        MainRewardFragment mainRewardFragment = getMainRewardFragment();
-        if (mainRewardFragment != null) {
-            ChildProfile child = mainRewardFragment.getSelectedKid();
-            if (child != null) {
-                selectedChild = child; // Store it locally
-                if (!child.getChildId().equals(childId)) {
-                    childId = child.getChildId();
-                }
-                Log.d("RewardRedeemFragment", "getSelectedChild - got from MainRewardFragment: " + child.getName());
-                return child;
-            } else {
-                Log.d("RewardRedeemFragment", "getSelectedChild - MainRewardFragment.getSelectedKid() returned null");
-            }
-        } else {
-            Log.d("RewardRedeemFragment", "getSelectedChild - MainRewardFragment not found");
-        }
-
-        return null;
+        Log.d(TAG, "RecyclerView setup completed");
     }
 
     private void loadRedeemedRewards() {
-        ChildProfile selectedChild = getSelectedChild();
+        Log.d(TAG, "loadRedeemedRewards called");
 
-        Log.d("RewardRedeemFragment", "loadRedeemedRewards() called - selectedChild: " +
-                (selectedChild != null ? selectedChild.getName() : "null"));
-
-        if (selectedChild == null) {
-            // No child selected, show empty state with message
-            updateEmptyState(true, "Please select a child to view redeem history");
+        // Validate required data
+        if ((familyId == null || familyId.isEmpty()) && (currentUserId == null || currentUserId.isEmpty())) {
+            Log.d(TAG, "Both family ID and user ID are null/empty, trying to get from current user");
+            loadUserAndRetry();
             return;
         }
 
         if (familyId == null || familyId.isEmpty()) {
-            familyId = selectedChild.getFamilyId();
-        }
-
-        Log.d("RewardRedeemFragment", "Using familyId: " + familyId);
-
-        if (familyId == null || familyId.isEmpty()) {
-            // Try to get familyId from current user
-            FirebaseHelper.getCurrentUser(new FirebaseHelper.CurrentUserCallback() {
-                @Override
-                public void onUserLoaded(com.chores.app.kids.chores_app_for_kids.models.User user) {
-                    if (user.getFamilyId() != null && !user.getFamilyId().isEmpty()) {
-                        familyId = user.getFamilyId();
-                        Log.d("RewardRedeemFragment", "Got familyId from current user: " + familyId);
-                        loadRedeemedRewardsForSelectedChild();
-                    } else {
-                        Log.e("RewardRedeemFragment", "No family found for current user");
-                        updateEmptyState(true, "No family found");
-                    }
-                }
-
-                @Override
-                public void onError(String error) {
-                    Log.e("RewardRedeemFragment", "Error loading current user: " + error);
-                    updateEmptyState(true, "Error loading family data");
-                }
-            });
+            Log.e(TAG, "Family ID is still null/empty after checks");
+            showError("No family associated with this account");
+            updateEmptyState(true);
             return;
         }
 
-        loadRedeemedRewardsForSelectedChild();
+        loadFamilyRedeemedRewards();
     }
 
-    private void loadRedeemedRewardsForSelectedChild() {
-        ChildProfile selectedChild = getSelectedChild();
-        if (selectedChild == null) {
-            Log.e("RewardRedeemFragment", "loadRedeemedRewardsForSelectedChild: selectedChild is null");
-            updateEmptyState(true, "Please select a child to view redeem history");
-            return;
-        }
-
-        String childId = selectedChild.getChildId();
-        Log.d("RewardRedeemFragment", "Loading redeemed rewards for childId: " + childId +
-                ", familyId: " + familyId + ", child: " + selectedChild.getName());
-
+    private void loadUserAndRetry() {
+        Log.d(TAG, "Loading current user to get family information");
         showLoading(true);
 
-        // Load redeemed rewards specifically for this child
-        FirebaseHelper.getRedeemedRewardsForChild(childId, familyId, new FirebaseHelper.RedeemedRewardsCallback() {
+        FirebaseHelper.getCurrentUser(new FirebaseHelper.CurrentUserCallback() {
             @Override
-            public void onRedeemedRewardsLoaded(List<RedeemedReward> redeemedRewards) {
-                Log.d("RewardRedeemFragment", "Child-specific redeemed rewards loaded successfully, count: " + redeemedRewards.size());
-                if (getActivity() != null) {
-                    getActivity().runOnUiThread(() -> {
-                        showLoading(false);
-                        redeemedRewardList.clear();
-                        redeemedRewardList.addAll(redeemedRewards);
-                        redeemHistoryAdapter.notifyDataSetChanged();
+            public void onUserLoaded(com.chores.app.kids.chores_app_for_kids.models.User user) {
+                Log.d(TAG, "Current user loaded: " + user.getName() + ", Role: " + user.getRole());
+                if (user.getFamilyId() != null && !user.getFamilyId().isEmpty()) {
+                    familyId = user.getFamilyId();
+                    currentUserId = user.getUserId();
+                    isChildAccount = "child".equals(user.getRole());
 
-                        String emptyMessage = redeemedRewards.isEmpty() ?
-                                selectedChild.getName() + " hasn't redeemed any rewards yet" :
-                                "";
-                        updateEmptyState(redeemedRewards.isEmpty(), emptyMessage);
-
-                        // Log each redeemed reward for debugging
-                        for (RedeemedReward redeemedReward : redeemedRewards) {
-                            Log.d("RewardRedeemFragment", "Redeemed reward for " + selectedChild.getName() + ": " +
-                                    redeemedReward.getRewardName() + ", Stars: " + redeemedReward.getStarCost());
-                        }
-                    });
+                    Log.d(TAG, "Updated - Family ID: " + familyId + ", User ID: " + currentUserId + ", Is Child: " + isChildAccount);
+                    loadFamilyRedeemedRewards();
+                } else {
+                    Log.w(TAG, "User has no family ID");
+                    showError("No family associated with this account");
+                    updateEmptyState(true);
                 }
             }
 
             @Override
             public void onError(String error) {
-                Log.e("RewardRedeemFragment", "Error loading child-specific redeemed rewards: " + error);
-                if (getActivity() != null) {
+                Log.e(TAG, "Error getting current user: " + error);
+                showError("Failed to load user information: " + error);
+                updateEmptyState(true);
+            }
+        });
+    }
+
+    private void loadFamilyRedeemedRewards() {
+        Log.d(TAG, "Loading redeemed rewards for family: " + familyId);
+        showLoading(true);
+
+        if (isChildAccount && currentUserId != null && !currentUserId.isEmpty()) {
+            // Load child-specific redeemed rewards
+            Log.d(TAG, "Loading child-specific redeemed rewards for user: " + currentUserId);
+            loadChildRedeemedRewards();
+        } else {
+            // Load all family redeemed rewards
+            Log.d(TAG, "Loading all family redeemed rewards");
+            loadAllFamilyRedeemedRewards();
+        }
+    }
+
+    private void loadChildRedeemedRewards() {
+        FirebaseHelper.getRedeemedRewardsForChild(currentUserId, familyId, new FirebaseHelper.RedeemedRewardsCallback() {
+            @Override
+            public void onRedeemedRewardsLoaded(List<RedeemedReward> redeemedRewards) {
+                Log.d(TAG, "Child-specific redeemed rewards loaded successfully. Count: " + redeemedRewards.size());
+                handleRedeemedRewardsLoaded(redeemedRewards);
+            }
+
+            @Override
+            public void onError(String error) {
+                Log.e(TAG, "Error loading child-specific redeemed rewards: " + error);
+                // Fallback to loading all family rewards
+                Log.d(TAG, "Falling back to load all family rewards");
+                loadAllFamilyRedeemedRewards();
+            }
+        });
+    }
+
+    private void loadAllFamilyRedeemedRewards() {
+        FirebaseHelper.getRedeemedRewards(familyId, new FirebaseHelper.RedeemedRewardsCallback() {
+            @Override
+            public void onRedeemedRewardsLoaded(List<RedeemedReward> redeemedRewards) {
+                Log.d(TAG, "All family redeemed rewards loaded successfully. Count: " + redeemedRewards.size());
+                handleRedeemedRewardsLoaded(redeemedRewards);
+            }
+
+            @Override
+            public void onError(String error) {
+                Log.e(TAG, "Error loading family redeemed rewards: " + error);
+
+                if (getActivity() != null && !isDetached()) {
                     getActivity().runOnUiThread(() -> {
                         showLoading(false);
-                        updateEmptyState(true, "Error loading redeem history: " + error);
+                        showError("Failed to load reward history: " + error);
+                        updateEmptyState(true);
                     });
                 }
             }
         });
     }
 
+    private void handleRedeemedRewardsLoaded(List<RedeemedReward> redeemedRewards) {
+        if (getActivity() != null && !isDetached()) {
+            getActivity().runOnUiThread(() -> {
+                showLoading(false);
+                redeemedRewardList.clear();
+                redeemedRewardList.addAll(redeemedRewards);
+                redeemHistoryAdapter.notifyDataSetChanged();
+                updateEmptyState(redeemedRewards.isEmpty());
+
+                Log.d(TAG, "UI updated with " + redeemedRewards.size() + " redeemed rewards");
+
+                // Log some details about the loaded rewards for debugging
+                for (int i = 0; i < Math.min(3, redeemedRewards.size()); i++) {
+                    RedeemedReward reward = redeemedRewards.get(i);
+                    Log.d(TAG, "Reward " + i + ": " + reward.getRewardName() +
+                            " by " + reward.getChildName() +
+                            " at " + reward.getRedeemedAt());
+                }
+            });
+        }
+    }
+
     private void showLoading(boolean show) {
-        if (show) {
-            layoutLoading.setVisibility(View.VISIBLE);
-            recyclerViewRedeemHistory.setVisibility(View.GONE);
-            layoutEmptyState.setVisibility(View.GONE);
-        } else {
-            layoutLoading.setVisibility(View.GONE);
+        Log.d(TAG, "showLoading: " + show);
+        if (getActivity() != null && !isDetached()) {
+            if (show) {
+                layoutLoading.setVisibility(View.VISIBLE);
+                recyclerViewRedeemHistory.setVisibility(View.GONE);
+                layoutEmptyState.setVisibility(View.GONE);
+            } else {
+                layoutLoading.setVisibility(View.GONE);
+            }
         }
     }
 
     private void updateEmptyState(boolean isEmpty) {
-        updateEmptyState(isEmpty, "No redeem history available");
+        Log.d(TAG, "updateEmptyState: " + isEmpty);
+        if (getActivity() != null && !isDetached()) {
+            if (isEmpty) {
+                layoutEmptyState.setVisibility(View.VISIBLE);
+                recyclerViewRedeemHistory.setVisibility(View.GONE);
+            } else {
+                layoutEmptyState.setVisibility(View.GONE);
+                recyclerViewRedeemHistory.setVisibility(View.VISIBLE);
+            }
+        }
     }
 
-    private void updateEmptyState(boolean isEmpty, String message) {
-        if (isEmpty) {
-            layoutEmptyState.setVisibility(View.VISIBLE);
-            recyclerViewRedeemHistory.setVisibility(View.GONE);
-
-            // Update empty state message if there's a TextView for it
-            android.widget.TextView emptyMessage = layoutEmptyState.findViewById(R.id.tv_empty_message);
-            if (emptyMessage != null) {
-                emptyMessage.setText(message);
-            }
-        } else {
-            layoutEmptyState.setVisibility(View.GONE);
-            recyclerViewRedeemHistory.setVisibility(View.VISIBLE);
+    private void showError(String message) {
+        Log.e(TAG, "Showing error: " + message);
+        if (getContext() != null && !isDetached()) {
+            Toast.makeText(getContext(), message, Toast.LENGTH_LONG).show();
         }
     }
 
     @Override
     public void onResume() {
         super.onResume();
-        // Only load if we have a selected child
-        if (selectedChild != null) {
-            loadRedeemedRewards();
-        } else {
-            // Show message asking to select a child
-            updateEmptyState(true, "Please select a child to view redeem history");
-        }
+        Log.d(TAG, "onResume called - refreshing redeemed rewards");
+        // Refresh redeemed rewards when fragment becomes visible
+        loadRedeemedRewards();
     }
 
     // Public method to refresh the list (can be called from parent activity/fragment)
     public void refreshRedeemedRewards() {
-        Log.d("RewardRedeemFragment", "refreshRedeemedRewards called");
+        Log.d(TAG, "refreshRedeemedRewards called");
+        loadRedeemedRewards();
+    }
+
+    public void onChildSelectionChanged() {
+        Log.d("RewardsFragment", "onChildSelectionChanged called");
 
         // Clear the stored selected child so it gets refreshed
         selectedChild = null;
 
         if (getView() != null && isAdded()) {
-            loadRedeemedRewards();
+            loadChildRedeemedRewards();
         } else {
             // If view is not ready, schedule for later
             if (getView() != null) {
                 getView().post(() -> {
                     if (isAdded()) {
-                        loadRedeemedRewards();
+                        loadChildRedeemedRewards();
                     }
                 });
             }
         }
     }
 
-    // Method to set the selected child directly (called by MainRewardFragment)
+
     public void setSelectedChild(ChildProfile child) {
-        Log.d("RewardRedeemFragment", "setSelectedChild called with: " +
+        Log.d("RewardsFragment", "setSelectedChild called with: " +
                 (child != null ? child.getName() : "null"));
         this.selectedChild = child;
         if (child != null) {
             this.childId = child.getChildId();
-        }
-    }
-
-    // Public method to refresh rewards when child selection changes
-    // This is called by MainRewardFragment when the selected child changes
-    public void onChildSelectionChanged() {
-        Log.d("RewardRedeemFragment", "onChildSelectionChanged called");
-
-        // Clear the stored selected child so it gets refreshed
-        selectedChild = null;
-
-        if (getView() != null && isAdded()) {
-            loadRedeemedRewards();
-        } else {
-            // If view is not ready, schedule for later
-            if (getView() != null) {
-                getView().post(() -> {
-                    if (isAdded()) {
-                        loadRedeemedRewards();
-                    }
-                });
-            }
         }
     }
 }

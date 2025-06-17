@@ -703,40 +703,97 @@ public class FirebaseHelper {
     // ==================== REDEEMED REWARDS MANAGEMENT ====================
 
     public static void getRedeemedRewards(String familyId, RedeemedRewardsCallback callback) {
+        Log.d("FirebaseHelper", "getRedeemedRewards called with familyId: " + familyId);
+
+        if (familyId == null || familyId.isEmpty()) {
+            Log.e("FirebaseHelper", "Family ID is null or empty");
+            callback.onError("Invalid family ID");
+            return;
+        }
+
+        // Use simple query first, then sort in memory to avoid index issues
         db.collection("redeemedRewards")
                 .whereEqualTo("familyId", familyId)
-                .orderBy("timestamp", Query.Direction.DESCENDING)
                 .get()
                 .addOnCompleteListener(task -> {
                     if (task.isSuccessful()) {
-                        List<RedeemedReward> redeemedRewards = new ArrayList<>();
-                        for (DocumentSnapshot doc : task.getResult()) {
-                            RedeemedReward redeemedReward = documentToRedeemedReward(doc);
-                            redeemedRewards.add(redeemedReward);
-                        }
-                        callback.onRedeemedRewardsLoaded(redeemedRewards);
+                        Log.d("FirebaseHelper", "Successfully retrieved " + task.getResult().size() + " redeemed rewards");
+                        processRedeemedRewardsResult(task.getResult(), callback);
                     } else {
-                        callback.onError("Failed to load redeemed rewards");
+                        Log.e("FirebaseHelper", "Failed to get redeemed rewards", task.getException());
+                        String errorMsg = task.getException() != null ? task.getException().getMessage() : "Unknown error";
+                        callback.onError("Failed to load redeemed rewards: " + errorMsg);
                     }
                 });
     }
 
+    private static void processRedeemedRewardsResult(QuerySnapshot querySnapshot, RedeemedRewardsCallback callback) {
+        List<RedeemedReward> redeemedRewards = new ArrayList<>();
+
+        Log.d("FirebaseHelper", "Processing " + querySnapshot.size() + " redeemed reward documents");
+
+        for (DocumentSnapshot doc : querySnapshot) {
+            try {
+                RedeemedReward redeemedReward = documentToRedeemedReward(doc);
+                if (redeemedReward != null) {
+                    redeemedRewards.add(redeemedReward);
+                    Log.d("FirebaseHelper", "Processed reward: " + redeemedReward.getRewardName() +
+                            " for child: " + redeemedReward.getChildName() +
+                            " (ID: " + redeemedReward.getChildId() + ")");
+                } else {
+                    Log.w("FirebaseHelper", "Failed to process document: " + doc.getId());
+                }
+            } catch (Exception e) {
+                Log.e("FirebaseHelper", "Error processing redeemed reward document: " + doc.getId(), e);
+            }
+        }
+
+        // Sort by timestamp/date in descending order (newest first)
+        redeemedRewards.sort((r1, r2) -> {
+            // First try to compare by timestamp
+            if (r1.getTimestamp() != 0 && r2.getTimestamp() != 0) {
+                return Long.compare(r2.getTimestamp(), r1.getTimestamp());
+            }
+
+            // Fallback to comparing by redeemedAt date
+            if (r1.getRedeemedAt() == null && r2.getRedeemedAt() == null) return 0;
+            if (r1.getRedeemedAt() == null) return 1;
+            if (r2.getRedeemedAt() == null) return -1;
+            return r2.getRedeemedAt().compareTo(r1.getRedeemedAt());
+        });
+
+        Log.d("FirebaseHelper", "Returning " + redeemedRewards.size() + " processed and sorted redeemed rewards");
+        callback.onRedeemedRewardsLoaded(redeemedRewards);
+    }
+
+
     public static void getRedeemedRewardsForChild(String childId, String familyId, RedeemedRewardsCallback callback) {
+        Log.d("FirebaseHelper", "getRedeemedRewardsForChild called with childId: " + childId + ", familyId: " + familyId);
+
+        if (childId == null || childId.isEmpty()) {
+            Log.e("FirebaseHelper", "Child ID is null or empty");
+            callback.onError("Invalid child ID");
+            return;
+        }
+
+        if (familyId == null || familyId.isEmpty()) {
+            Log.e("FirebaseHelper", "Family ID is null or empty");
+            callback.onError("Invalid family ID");
+            return;
+        }
+
         db.collection("redeemedRewards")
                 .whereEqualTo("childId", childId)
                 .whereEqualTo("familyId", familyId)
-                .orderBy("timestamp", Query.Direction.DESCENDING)
                 .get()
                 .addOnCompleteListener(task -> {
                     if (task.isSuccessful()) {
-                        List<RedeemedReward> redeemedRewards = new ArrayList<>();
-                        for (DocumentSnapshot doc : task.getResult()) {
-                            RedeemedReward redeemedReward = documentToRedeemedReward(doc);
-                            redeemedRewards.add(redeemedReward);
-                        }
-                        callback.onRedeemedRewardsLoaded(redeemedRewards);
+                        Log.d("FirebaseHelper", "Successfully retrieved " + task.getResult().size() + " child-specific redeemed rewards");
+                        processRedeemedRewardsResult(task.getResult(), callback);
                     } else {
-                        callback.onError("Failed to load redeemed rewards for child");
+                        Log.e("FirebaseHelper", "Failed to get child-specific redeemed rewards", task.getException());
+                        String errorMsg = task.getException() != null ? task.getException().getMessage() : "Unknown error";
+                        callback.onError("Failed to load redeemed rewards for child: " + errorMsg);
                     }
                 });
     }
@@ -837,35 +894,77 @@ public class FirebaseHelper {
                 });
     }
 
+    // Enhanced documentToRedeemedReward method with better error handling
     private static RedeemedReward documentToRedeemedReward(DocumentSnapshot doc) {
-        RedeemedReward redeemedReward = new RedeemedReward();
-        redeemedReward.setRedeemedRewardId(doc.getId());
-        redeemedReward.setRewardId(doc.getString("rewardId"));
-        redeemedReward.setRewardName(doc.getString("rewardName"));
-        redeemedReward.setIconName(doc.getString("iconName"));
-        redeemedReward.setIconUrl(doc.getString("iconUrl"));
+        try {
+            if (!doc.exists()) {
+                Log.w("FirebaseHelper", "Document does not exist: " + doc.getId());
+                return null;
+            }
 
-        Long starCost = doc.getLong("starCost");
-        redeemedReward.setStarCost(starCost != null ? starCost.intValue() : 0);
+            RedeemedReward redeemedReward = new RedeemedReward();
+            redeemedReward.setRedeemedRewardId(doc.getId());
 
-        redeemedReward.setChildId(doc.getString("childId"));
-        redeemedReward.setChildName(doc.getString("childName"));
-        redeemedReward.setFamilyId(doc.getString("familyId"));
+            // Basic reward information
+            redeemedReward.setRewardId(doc.getString("rewardId"));
+            redeemedReward.setRewardName(doc.getString("rewardName"));
+            redeemedReward.setIconName(doc.getString("iconName"));
+            redeemedReward.setIconUrl(doc.getString("iconUrl"));
 
-        // Handle both Date and Timestamp objects
-        Object redeemedAtObj = doc.get("redeemedAt");
-        if (redeemedAtObj instanceof com.google.firebase.Timestamp) {
-            redeemedReward.setRedeemedAt(((com.google.firebase.Timestamp) redeemedAtObj).toDate());
-        } else if (redeemedAtObj instanceof Long) {
-            redeemedReward.setRedeemedAt(new java.util.Date((Long) redeemedAtObj));
+            // Star cost
+            Long starCost = doc.getLong("starCost");
+            redeemedReward.setStarCost(starCost != null ? starCost.intValue() : 0);
+
+            // Child and family information
+            redeemedReward.setChildId(doc.getString("childId"));
+            redeemedReward.setChildName(doc.getString("childName"));
+            redeemedReward.setFamilyId(doc.getString("familyId"));
+
+            // Enhanced date handling
+            Object redeemedAtObj = doc.get("redeemedAt");
+            if (redeemedAtObj instanceof com.google.firebase.Timestamp) {
+                redeemedReward.setRedeemedAt(((com.google.firebase.Timestamp) redeemedAtObj).toDate());
+            } else if (redeemedAtObj instanceof Long) {
+                redeemedReward.setRedeemedAt(new java.util.Date((Long) redeemedAtObj));
+            } else if (redeemedAtObj instanceof java.util.Date) {
+                redeemedReward.setRedeemedAt((java.util.Date) redeemedAtObj);
+            } else {
+                // Fallback to current time if no valid date found
+                Log.w("FirebaseHelper", "No valid redeemedAt date found for reward: " + doc.getId() + ", using current time");
+                redeemedReward.setRedeemedAt(new java.util.Date());
+            }
+
+            // Enhanced timestamp handling
+            Long timestamp = doc.getLong("timestamp");
+            if (timestamp != null && timestamp > 0) {
+                redeemedReward.setTimestamp(timestamp);
+            } else {
+                // If no timestamp, use redeemedAt date as timestamp
+                if (redeemedReward.getRedeemedAt() != null) {
+                    redeemedReward.setTimestamp(redeemedReward.getRedeemedAt().getTime());
+                } else {
+                    redeemedReward.setTimestamp(System.currentTimeMillis());
+                }
+                Log.d("FirebaseHelper", "No timestamp found for reward: " + doc.getId() + ", using redeemedAt as fallback");
+            }
+
+            // Validation
+            if (redeemedReward.getRewardName() == null || redeemedReward.getRewardName().isEmpty()) {
+                Log.w("FirebaseHelper", "Reward has empty name: " + doc.getId());
+                redeemedReward.setRewardName("Unknown Reward");
+            }
+
+            if (redeemedReward.getChildName() == null || redeemedReward.getChildName().isEmpty()) {
+                Log.w("FirebaseHelper", "Reward has empty child name: " + doc.getId());
+                redeemedReward.setChildName("Unknown Child");
+            }
+
+            return redeemedReward;
+        } catch (Exception e) {
+            Log.e("FirebaseHelper", "Error converting document to RedeemedReward: " + doc.getId(), e);
+            return null;
         }
-
-        Long timestamp = doc.getLong("timestamp");
-        redeemedReward.setTimestamp(timestamp != null ? timestamp : 0);
-
-        return redeemedReward;
     }
-
     public interface RedeemedRewardsCallback {
         void onRedeemedRewardsLoaded(List<RedeemedReward> redeemedRewards);
 
