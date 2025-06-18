@@ -331,72 +331,96 @@ public class FirebaseHelper {
                     }
                 });
     }
+    // Helper method to load tasks for a child
+    private static void loadTasksForChild(String childId, String familyId, String date, OnTasksLoadedListener callback) {
+        // Parse the date string to get timestamp for start and end of day
+        long targetDateTimestamp = 0;
+        if (date != null && !date.isEmpty()) {
+            try {
+                // Parse ISO date format (yyyy-MM-dd)
+                String[] dateParts = date.split("-");
+                if (dateParts.length == 3) {
+                    int year = Integer.parseInt(dateParts[0]);
+                    int month = Integer.parseInt(dateParts[1]) - 1; // Calendar month is 0-based
+                    int day = Integer.parseInt(dateParts[2]);
 
-    public static void getTasksForDate(String childId, String date, OnTasksLoadedListener callback) {
-        getCurrentUser(new CurrentUserCallback() {
-            @Override
-            public void onUserLoaded(User user) {
-                if (user.getFamilyId() != null) {
-                    // Parse the date string to get timestamp for start and end of day
-                    long targetDateTimestamp = 0;
-                    if (date != null && !date.isEmpty()) {
-                        try {
-                            // Parse ISO date format (yyyy-MM-dd)
-                            String[] dateParts = date.split("-");
-                            if (dateParts.length == 3) {
-                                int year = Integer.parseInt(dateParts[0]);
-                                int month = Integer.parseInt(dateParts[1]) - 1; // Calendar month is 0-based
-                                int day = Integer.parseInt(dateParts[2]);
-
-                                Calendar cal = Calendar.getInstance();
-                                cal.set(year, month, day, 0, 0, 0);
-                                cal.set(Calendar.MILLISECOND, 0);
-                                targetDateTimestamp = cal.getTimeInMillis();
-                            }
-                        } catch (Exception e) {
-                            Log.e("FirebaseHelper", "Error parsing date: " + date, e);
-                            targetDateTimestamp = System.currentTimeMillis();
-                        }
-                    } else {
-                        targetDateTimestamp = System.currentTimeMillis();
-                    }
-
-                    final long finalTargetTimestamp = targetDateTimestamp;
-
-                    db.collection("tasks")
-                            .whereEqualTo("familyId", user.getFamilyId())
-                            .whereArrayContains("assignedKids", childId)
-                            .whereEqualTo("status", "active")
-                            .get()
-                            .addOnCompleteListener(task -> {
-                                if (task.isSuccessful()) {
-                                    List<Task> filteredTasks = new ArrayList<>();
-                                    for (DocumentSnapshot doc : task.getResult()) {
-                                        Task taskObj = documentToTask(doc);
-                                        // Check if task should be shown on this date
-                                        if (taskObj.isScheduledForDate(finalTargetTimestamp)) {
-                                            // Check completion status for specific date
-                                            checkTaskCompletionForDate(taskObj.getTaskId(), childId, date, isCompleted -> {
-                                                taskObj.setCompleted(isCompleted);
-                                            });
-                                            filteredTasks.add(taskObj);
-                                        }
-                                    }
-                                    callback.onTasksLoaded(filteredTasks);
-                                } else {
-                                    callback.onError("Failed to load tasks");
-                                }
-                            });
-                } else {
-                    callback.onError("User has no family ID");
+                    Calendar cal = Calendar.getInstance();
+                    cal.set(year, month, day, 0, 0, 0);
+                    cal.set(Calendar.MILLISECOND, 0);
+                    targetDateTimestamp = cal.getTimeInMillis();
                 }
+            } catch (Exception e) {
+                Log.e("FirebaseHelper", "Error parsing date: " + date, e);
+                targetDateTimestamp = System.currentTimeMillis();
             }
+        } else {
+            targetDateTimestamp = System.currentTimeMillis();
+        }
 
-            @Override
-            public void onError(String error) {
-                callback.onError(error);
-            }
-        });
+        final long finalTargetTimestamp = targetDateTimestamp;
+
+        db.collection("tasks")
+                .whereEqualTo("familyId", familyId)
+                .whereArrayContains("assignedKids", childId)
+                .whereEqualTo("status", "active")
+                .get()
+                .addOnCompleteListener(task -> {
+                    if (task.isSuccessful()) {
+                        List<Task> filteredTasks = new ArrayList<>();
+                        for (DocumentSnapshot doc : task.getResult()) {
+                            Task taskObj = documentToTask(doc);
+                            // Check if task should be shown on this date
+                            if (taskObj.isScheduledForDate(finalTargetTimestamp)) {
+                                // Check completion status for specific date
+                                checkTaskCompletionForDate(taskObj.getTaskId(), childId, date, isCompleted -> {
+                                    taskObj.setCompleted(isCompleted);
+                                });
+                                filteredTasks.add(taskObj);
+                            }
+                        }
+                        callback.onTasksLoaded(filteredTasks);
+                    } else {
+                        callback.onError("Failed to load tasks");
+                    }
+                });
+    }
+    public static void getTasksForDate(String childId, String date, OnTasksLoadedListener callback) {
+        // Check if this is a child account
+        if (childId != null && childId.startsWith("child_")) {
+            // For child accounts, get user by childId directly
+            getUserById(childId, new CurrentUserCallback() {
+                @Override
+                public void onUserLoaded(User user) {
+                    if (user.getFamilyId() != null) {
+                        loadTasksForChild(childId, user.getFamilyId(), date, callback);
+                    } else {
+                        callback.onError("Child has no family ID");
+                    }
+                }
+
+                @Override
+                public void onError(String error) {
+                    callback.onError(error);
+                }
+            });
+        } else {
+            // For parent accounts, use the existing getCurrentUser method
+            getCurrentUser(new CurrentUserCallback() {
+                @Override
+                public void onUserLoaded(User user) {
+                    if (user.getFamilyId() != null) {
+                        loadTasksForChild(childId, user.getFamilyId(), date, callback);
+                    } else {
+                        callback.onError("User has no family ID");
+                    }
+                }
+
+                @Override
+                public void onError(String error) {
+                    callback.onError(error);
+                }
+            });
+        }
     }
 
     public static void updateTask(Task task, OnTaskUpdatedListener callback) {

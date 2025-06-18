@@ -127,27 +127,43 @@ public class KidTasksFragment extends Fragment {
     private void loadUserData() {
         // Try both methods to get child ID
         childId = AuthHelper.getChildId(getContext());
-        if (childId == null) {
+        if (childId == null || childId.isEmpty()) {
             childId = AuthHelper.getCurrentUserId(getContext());
         }
 
         familyId = AuthHelper.getFamilyId(getContext());
 
+        // Debug logs
+        System.out.println("KidTasksFragment - childId: " + childId + ", familyId: " + familyId);
+
         // Load child user data
-        if (childId != null) {
+        if (childId != null && !childId.isEmpty()) {
             FirebaseHelper.getUserById(childId, new FirebaseHelper.CurrentUserCallback() {
                 @Override
                 public void onUserLoaded(User user) {
                     if (getActivity() != null) {
                         getActivity().runOnUiThread(() -> {
                             updateKidProfileUI(user);
+                            // Update familyId if it was null
+                            if (familyId == null || familyId.isEmpty()) {
+                                familyId = user.getFamilyId();
+                                System.out.println("Updated familyId from user: " + familyId);
+                            }
+                            // Reload tasks now that we have proper familyId
+                            loadTasks();
                         });
                     }
                 }
 
                 @Override
                 public void onError(String error) {
-                    // Handle error silently
+                    System.out.println("Error loading user: " + error);
+                    // Still try to load tasks with what we have
+                    if (getActivity() != null) {
+                        getActivity().runOnUiThread(() -> {
+                            loadTasks();
+                        });
+                    }
                 }
             });
 
@@ -160,9 +176,11 @@ public class KidTasksFragment extends Fragment {
                     });
                 }
             });
+        } else {
+            System.out.println("No valid childId found, showing empty state");
+            showEmptyState("Please log in again.");
         }
     }
-
     private void updateKidProfileUI(User user) {
         if (user != null) {
             tvKidName.setText(user.getName());
@@ -181,8 +199,10 @@ public class KidTasksFragment extends Fragment {
     }
 
     private void loadTasks() {
-        if (childId == null || familyId == null) {
-            showEmptyState("Oops! Let's reload your tasks.");
+        // Check if we have the required data
+        if (childId == null || childId.isEmpty()) {
+            System.out.println("No childId available, cannot load tasks");
+            showEmptyState("Please log in again.");
             return;
         }
 
@@ -190,7 +210,7 @@ public class KidTasksFragment extends Fragment {
         String currentDate = getCurrentDateString();
 
         // Debug logs
-        System.out.println("Loading tasks for childId: " + childId + ", currentDate: " + currentDate);
+        System.out.println("Loading tasks for childId: " + childId + ", familyId: " + familyId + ", currentDate: " + currentDate);
 
         // Load tasks for current date only
         FirebaseHelper.getTasksForDate(childId, currentDate, new FirebaseHelper.OnTasksLoadedListener() {
@@ -221,7 +241,6 @@ public class KidTasksFragment extends Fragment {
             }
         });
     }
-
     private void loadTodaysCompletedTasks(List<Task> activeTasks) {
         if (activeTasks.isEmpty()) {
             updateTaskList(activeTasks);

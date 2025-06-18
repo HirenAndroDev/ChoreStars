@@ -446,10 +446,14 @@ public class AuthHelper {
         editor.putLong("child_login_time", System.currentTimeMillis());
         editor.apply();
 
+        // Debug log to verify session was saved
+        Log.d(TAG, "Child session saved successfully");
+        Log.d(TAG, "Saved childId: " + prefs.getString("child_id", "NOT_FOUND"));
+        Log.d(TAG, "Saved familyId: " + prefs.getString(KEY_FAMILY_ID, "NOT_FOUND"));
+
         // Also save this kid profile to the KidProfileManager for multi-profile support
         saveKidProfile(context, childId, userName, familyId);
     }
-
     // Save kid profile for multi-profile support
     private static void saveKidProfile(Context context, String childId, String userName, String familyId) {
         KidProfileManager kidProfileManager = new KidProfileManager(context);
@@ -593,10 +597,14 @@ public class AuthHelper {
     // Enhanced getCurrentUserId that works for both parents and children  
     public static String getCurrentUserId(Context context) {
         if (isChildAccount(context)) {
-            return getChildId(context);
+            String childId = getChildId(context);
+            Log.d(TAG, "Getting child ID from session: " + childId);
+            return childId;
         } else {
             FirebaseUser user = auth.getCurrentUser();
-            return user != null ? user.getUid() : null;
+            String userId = user != null ? user.getUid() : null;
+            Log.d(TAG, "Getting parent ID from Firebase Auth: " + userId);
+            return userId;
         }
     }
 
