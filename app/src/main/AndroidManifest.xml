@@ -25,6 +25,10 @@
         android:theme="@style/AppTheme"
         tools:targetApi="31">
         <activity
+            android:name=".activities.StarBalanceActivity"
+            android:exported="false"
+            android:theme="@style/AppTheme.NoActionBar" />
+        <activity
             android:name=".activities.AddKidProfileActivity"
             android:exported="false" />
         <activity

@@ -21,6 +21,7 @@ import androidx.viewpager.widget.ViewPager;
 import com.bumptech.glide.Glide;
 import com.chores.app.kids.chores_app_for_kids.R;
 import com.chores.app.kids.chores_app_for_kids.activities.CreateTaskActivity;
+import com.chores.app.kids.chores_app_for_kids.activities.StarBalanceActivity;
 import com.chores.app.kids.chores_app_for_kids.adapters.TaskDayPagerAdapter;
 import com.chores.app.kids.chores_app_for_kids.dialogs.KidProfilesParentDialog;
 import com.chores.app.kids.chores_app_for_kids.models.ChildProfile;
@@ -51,7 +52,7 @@ public class TaskManageFragment extends Fragment implements KidProfilesParentDia
     private ImageView ivLeftArrow, ivRightArrow;
     private TextView tvWeekLabel, tvKidName, tvStarsBalance;
     private CircleImageView ivKidProfile;
-    private LinearLayout layoutKidProfile;
+    private LinearLayout layoutKidProfile, layoutStarsBalance;
     private FloatingActionButton fabAddTask;
     private View calendarContainer;
 
@@ -104,6 +105,7 @@ public class TaskManageFragment extends Fragment implements KidProfilesParentDia
         tvStarsBalance = rootView.findViewById(R.id.tvStarsBalance);
         ivKidProfile = rootView.findViewById(R.id.ivKidProfile);
         layoutKidProfile = rootView.findViewById(R.id.layoutKidProfile);
+        layoutStarsBalance = rootView.findViewById(R.id.layoutStarsBalance);
         calendarContainer = rootView.findViewById(R.id.calendarContainer);
         vpTask = rootView.findViewById(R.id.vpTask);
         fabAddTask = rootView.findViewById(R.id.fabAddTask);
@@ -116,6 +118,18 @@ public class TaskManageFragment extends Fragment implements KidProfilesParentDia
             KidProfilesParentDialog dialog = new KidProfilesParentDialog(requireContext(), kidProfiles, selectedKid);
             dialog.setOnKidSelectedListener(this);
             dialog.show();
+        });
+
+        // Add click listener for star balance layout
+        layoutStarsBalance.setOnClickListener(v -> {
+            if (selectedKid != null) {
+                Intent intent = new Intent(requireContext(), StarBalanceActivity.class);
+                intent.putExtra(StarBalanceActivity.EXTRA_CHILD_ID, selectedKid.getChildId());
+                intent.putExtra(StarBalanceActivity.EXTRA_CHILD_NAME, selectedKid.getName());
+                intent.putExtra(StarBalanceActivity.EXTRA_CHILD_PROFILE_URL, selectedKid.getProfileImageUrl());
+                intent.putExtra(StarBalanceActivity.EXTRA_CURRENT_BALANCE, selectedKid.getStarBalance());
+                startActivity(intent);
+            }
         });
     }
 
@@ -509,6 +523,27 @@ public class TaskManageFragment extends Fragment implements KidProfilesParentDia
         // Refresh tasks when returning from other activities
         if (selectedKid != null && isAdded() && getActivity() != null) {
             refreshTasksForSelectedKid();
+            // Refresh kid profile data to get updated star balance
+            refreshSelectedKidProfile();
+        }
+    }
+
+    private void refreshSelectedKidProfile() {
+        if (selectedKid != null && firebaseHelper != null) {
+            firebaseHelper.getChildProfile(selectedKid.getChildId(), new FirebaseHelper.ChildProfileCallback() {
+                @Override
+                public void onChildProfileLoaded(ChildProfile childProfile) {
+                    if (isAdded() && getActivity() != null) {
+                        selectedKid = childProfile;
+                        updateKidProfileUI();
+                    }
+                }
+
+                @Override
+                public void onError(String error) {
+                    Log.e(TAG, "Error refreshing child profile: " + error);
+                }
+            });
         }
     }
 

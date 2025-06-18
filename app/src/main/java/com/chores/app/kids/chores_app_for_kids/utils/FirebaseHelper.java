@@ -2540,4 +2540,196 @@ public class FirebaseHelper {
         void onError(String error);
     }
 
+    // ==================== ADDITIONAL STAR BALANCE METHODS ====================
+
+    // Interface for star transaction listeners
+    public interface OnStarTransactionsLoadedListener {
+        void onTransactionsLoaded(List<StarTransaction> transactions);
+
+        void onError(String error);
+    }
+
+    // Interface for star balance updates
+    public interface OnStarBalanceUpdatedListener {
+        void onSuccess(int newBalance);
+
+        void onError(String error);
+    }
+
+    // Interface for star balance reset
+    public interface OnStarBalanceResetListener {
+        void onSuccess();
+
+        void onError(String error);
+    }
+
+    // Interface for transaction history clearing
+    public interface OnTransactionHistoryClearedListener {
+        void onSuccess();
+
+        void onError(String error);
+    }
+
+    // Get star transactions for a specific child
+    public void getStarTransactions(String childId, OnStarTransactionsLoadedListener listener) {
+        getCurrentUser(new CurrentUserCallback() {
+            @Override
+            public void onUserLoaded(User user) {
+                if (user.getFamilyId() != null) {
+                    db.collection("starTransactions")
+                            .whereEqualTo("userId", childId)
+                            .whereEqualTo("familyId", user.getFamilyId())
+                            .orderBy("timestamp", Query.Direction.DESCENDING)
+                            .limit(100)
+                            .get()
+                            .addOnCompleteListener(task -> {
+                                if (task.isSuccessful()) {
+                                    List<StarTransaction> transactions = new ArrayList<>();
+                                    for (DocumentSnapshot doc : task.getResult()) {
+                                        StarTransaction transaction = documentToStarTransaction(doc);
+                                        transactions.add(transaction);
+                                    }
+                                    listener.onTransactionsLoaded(transactions);
+                                } else {
+                                    String error = task.getException() != null ?
+                                            task.getException().getMessage() : "Failed to load transactions";
+                                    listener.onError(error);
+                                }
+                            });
+                } else {
+                    listener.onError("User has no family ID");
+                }
+            }
+
+            @Override
+            public void onError(String error) {
+                listener.onError(error);
+            }
+        });
+    }
+
+    // Adjust child star balance
+    public void adjustChildStarBalance(String childId, int amount, String description, OnStarBalanceUpdatedListener listener) {
+        db.collection("users").document(childId).get()
+                .addOnCompleteListener(task -> {
+                    if (task.isSuccessful() && task.getResult().exists()) {
+                        DocumentSnapshot doc = task.getResult();
+                        Long currentBalance = doc.getLong("starBalance");
+                        int oldBalance = currentBalance != null ? currentBalance.intValue() : 0;
+                        int newBalance = Math.max(0, oldBalance + amount);
+                        String familyId = doc.getString("familyId");
+
+                        // Update balance
+                        db.collection("users").document(childId)
+                                .update("starBalance", newBalance)
+                                .addOnCompleteListener(updateTask -> {
+                                    if (updateTask.isSuccessful()) {
+                                        // Create transaction record
+                                        createStarTransaction(childId, familyId, "adjustment", amount, description);
+                                        listener.onSuccess(newBalance);
+                                    } else {
+                                        String error = updateTask.getException() != null ?
+                                                updateTask.getException().getMessage() : "Failed to update balance";
+                                        listener.onError(error);
+                                    }
+                                });
+                    } else {
+                        String error = task.getException() != null ?
+                                task.getException().getMessage() : "Child not found";
+                        listener.onError(error);
+                    }
+                });
+    }
+
+    // Reset child star balance
+    public void resetChildStarBalance(String childId, OnStarBalanceResetListener listener) {
+        db.collection("users").document(childId).get()
+                .addOnCompleteListener(task -> {
+                    if (task.isSuccessful() && task.getResult().exists()) {
+                        DocumentSnapshot doc = task.getResult();
+                        String familyId = doc.getString("familyId");
+                        Long currentBalance = doc.getLong("starBalance");
+                        int oldBalance = currentBalance != null ? currentBalance.intValue() : 0;
+
+                        // Update balance to 0
+                        db.collection("users").document(childId)
+                                .update("starBalance", 0)
+                                .addOnCompleteListener(updateTask -> {
+                                    if (updateTask.isSuccessful()) {
+                                        // Create reset transaction record
+                                        createStarTransaction(childId, familyId, "reset", -oldBalance, "Balance Reset");
+                                        listener.onSuccess();
+                                    } else {
+                                        String error = updateTask.getException() != null ?
+                                                updateTask.getException().getMessage() : "Failed to reset balance";
+                                        listener.onError(error);
+                                    }
+                                });
+                    } else {
+                        String error = task.getException() != null ?
+                                task.getException().getMessage() : "Child not found";
+                        listener.onError(error);
+                    }
+                });
+    }
+
+    // Clear transaction history for a child
+    public void clearStarTransactionHistory(String childId, OnTransactionHistoryClearedListener listener) {
+        getCurrentUser(new CurrentUserCallback() {
+            @Override
+            public void onUserLoaded(User user) {
+                if (user.getFamilyId() != null) {
+                    db.collection("starTransactions")
+                            .whereEqualTo("userId", childId)
+                            .whereEqualTo("familyId", user.getFamilyId())
+                            .get()
+                            .addOnCompleteListener(task -> {
+                                if (task.isSuccessful()) {
+                                    WriteBatch batch = db.batch();
+                                    for (DocumentSnapshot doc : task.getResult()) {
+                                        batch.delete(doc.getReference());
+                                    }
+
+                                    batch.commit().addOnCompleteListener(batchTask -> {
+                                        if (batchTask.isSuccessful()) {
+                                            listener.onSuccess();
+                                        } else {
+                                            String error = batchTask.getException() != null ?
+                                                    batchTask.getException().getMessage() : "Failed to clear history";
+                                            listener.onError(error);
+                                        }
+                                    });
+                                } else {
+                                    String error = task.getException() != null ?
+                                            task.getException().getMessage() : "Failed to load transactions";
+                                    listener.onError(error);
+                                }
+                            });
+                } else {
+                    listener.onError("User has no family ID");
+                }
+            }
+
+            @Override
+            public void onError(String error) {
+                listener.onError(error);
+            }
+        });
+    }
+
+    // Helper method to create star transaction record
+    private void createStarTransaction(String childId, String familyId, String type, int amount, String description) {
+        Map<String, Object> transactionData = new HashMap<>();
+        transactionData.put("userId", childId);
+        transactionData.put("familyId", familyId);
+        transactionData.put("type", type);
+        transactionData.put("amount", amount);
+        transactionData.put("description", description);
+        transactionData.put("timestamp", System.currentTimeMillis());
+        transactionData.put("relatedTaskId", null);
+        transactionData.put("relatedRewardId", null);
+
+        db.collection("starTransactions").add(transactionData);
+    }
+
 }
