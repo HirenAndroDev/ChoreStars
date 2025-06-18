@@ -444,6 +444,8 @@ public class FirebaseHelper {
     }
 
     public static void completeTask(String taskId, String userId, OnCompleteListener<Void> listener) {
+        Log.d("FirebaseHelper", "Starting task completion for taskId: " + taskId + ", userId: " + userId);
+
         // First get the task to know star reward
         db.collection("tasks").document(taskId).get()
                 .addOnCompleteListener(taskResult -> {
@@ -454,19 +456,7 @@ public class FirebaseHelper {
                         String familyId = taskDoc.getString("familyId");
                         String taskName = taskDoc.getString("name");
 
-                        // Use WriteBatch for atomic operations
-                        WriteBatch batch = db.batch();
-
-                        // Create task completion record
-                        Map<String, Object> completionData = new HashMap<>();
-                        completionData.put("taskId", taskId);
-                        completionData.put("userId", userId);
-                        completionData.put("completedAt", System.currentTimeMillis());
-                        completionData.put("starsAwarded", stars);
-                        completionData.put("date", getCurrentDateString());
-
-                        DocumentReference completionRef = db.collection("taskCompletions").document();
-                        batch.set(completionRef, completionData);
+                        Log.d("FirebaseHelper", "Task details - Name: " + taskName + ", Stars: " + stars + ", Family: " + familyId);
 
                         // Get current user balance for transaction record
                         db.collection("users").document(userId).get()
@@ -477,11 +467,27 @@ public class FirebaseHelper {
                                         int oldBalance = currentBalance != null ? currentBalance.intValue() : 0;
                                         int newBalance = oldBalance + stars;
 
-                                        // Update user's star balance
+                                        Log.d("FirebaseHelper", "Balance update: " + oldBalance + " + " + stars + " = " + newBalance);
+
+                                        // Use WriteBatch for atomic operations
+                                        WriteBatch batch = db.batch();
+
+                                        // 1. Create task completion record
+                                        Map<String, Object> completionData = new HashMap<>();
+                                        completionData.put("taskId", taskId);
+                                        completionData.put("userId", userId);
+                                        completionData.put("completedAt", System.currentTimeMillis());
+                                        completionData.put("starsAwarded", stars);
+                                        completionData.put("date", getCurrentDateString());
+
+                                        DocumentReference completionRef = db.collection("taskCompletions").document();
+                                        batch.set(completionRef, completionData);
+
+                                        // 2. Update user's star balance
                                         DocumentReference userRef = db.collection("users").document(userId);
                                         batch.update(userRef, "starBalance", newBalance);
 
-                                        // Create transaction record
+                                        // 3. Create transaction record
                                         Map<String, Object> transactionData = new HashMap<>();
                                         transactionData.put("userId", userId);
                                         transactionData.put("familyId", familyId);
@@ -498,23 +504,34 @@ public class FirebaseHelper {
                                         batch.set(transactionRef, transactionData);
 
                                         // Commit batch
-                                        batch.commit().addOnCompleteListener(listener);
+                                        batch.commit().addOnCompleteListener(batchTask -> {
+                                            if (batchTask.isSuccessful()) {
+                                                Log.d("FirebaseHelper", "Task completion successful - New balance: " + newBalance);
+                                                listener.onComplete(com.google.android.gms.tasks.Tasks.forResult(null));
+                                            } else {
+                                                Log.e("FirebaseHelper", "Task completion batch failed", batchTask.getException());
+                                                listener.onComplete(com.google.android.gms.tasks.Tasks.forException(
+                                                        batchTask.getException() != null ? batchTask.getException() :
+                                                                new Exception("Failed to complete task")));
+                                            }
+                                        });
                                     } else {
-                                        // Fallback: just update without transaction record
-                                        updateStarBalance(userId, stars, familyId, "Task completed: " + taskName, taskId, null);
-                                        batch.commit().addOnCompleteListener(listener);
+                                        Log.e("FirebaseHelper", "Failed to get user document", userTask.getException());
+                                        listener.onComplete(com.google.android.gms.tasks.Tasks.forException(
+                                                new Exception("Failed to get user data")));
                                     }
                                 });
                     } else {
-                        // Pass the failure to the listener
-                        com.google.android.gms.tasks.Task<Void> failedTask = com.google.android.gms.tasks.Tasks.forException(
-                                new Exception("Task not found or failed to load"));
-                        listener.onComplete(failedTask);
+                        Log.e("FirebaseHelper", "Failed to get task document", taskResult.getException());
+                        listener.onComplete(com.google.android.gms.tasks.Tasks.forException(
+                                new Exception("Task not found or failed to load")));
                     }
                 });
     }
+
     public static void uncompleteTask(String taskId, String userId, OnCompleteListener<Void> listener) {
         String today = getCurrentDateString();
+        Log.d("FirebaseHelper", "Starting task uncompletion for taskId: " + taskId + ", userId: " + userId + ", date: " + today);
 
         // Remove task completion record for today
         db.collection("taskCompletions")
@@ -529,51 +546,86 @@ public class FirebaseHelper {
                         Long starsAwarded = completionDoc.getLong("starsAwarded");
                         int stars = starsAwarded != null ? starsAwarded.intValue() : 0;
 
-                        // Delete the completion record
-                        completionDoc.getReference().delete()
-                                .addOnCompleteListener(deleteTask -> {
-                                    if (deleteTask.isSuccessful()) {
-                                        // Update user's star balance (subtract stars)
-                                        if (stars > 0) {
-                                            // Get task details for transaction description
-                                            db.collection("tasks").document(taskId).get()
-                                                    .addOnCompleteListener(taskDocTask -> {
-                                                        String taskName = "Unknown Task";
-                                                        String familyId = null;
+                        Log.d("FirebaseHelper", "Found completion record with " + stars + " stars");
 
-                                                        if (taskDocTask.isSuccessful() && taskDocTask.getResult().exists()) {
-                                                            DocumentSnapshot taskDoc = taskDocTask.getResult();
-                                                            taskName = taskDoc.getString("name");
-                                                            familyId = taskDoc.getString("familyId");
-                                                        }
+                        // Get current user balance and task details
+                        db.collection("users").document(userId).get()
+                                .addOnCompleteListener(userTask -> {
+                                    if (userTask.isSuccessful() && userTask.getResult().exists()) {
+                                        DocumentSnapshot userDoc = userTask.getResult();
+                                        Long currentBalance = userDoc.getLong("starBalance");
+                                        int oldBalance = currentBalance != null ? currentBalance.intValue() : 0;
+                                        int newBalance = Math.max(0, oldBalance - stars);
 
-                                                        if (familyId != null) {
-                                                            updateStarBalance(userId, -stars, familyId,
-                                                                    "Task uncompleted: " + taskName, taskId, null);
-                                                        }
-                                                    });
-                                        }
+                                        Log.d("FirebaseHelper", "Balance update: " + oldBalance + " - " + stars + " = " + newBalance);
 
-                                        // Create success task for listener
-                                        com.google.android.gms.tasks.Task<Void> successTask =
-                                                com.google.android.gms.tasks.Tasks.forResult(null);
-                                        listener.onComplete(successTask);
+                                        // Get task details for transaction description
+                                        db.collection("tasks").document(taskId).get()
+                                                .addOnCompleteListener(taskDocTask -> {
+                                                    String taskName = "Unknown Task";
+                                                    String familyId = userDoc.getString("familyId");
+
+                                                    if (taskDocTask.isSuccessful() && taskDocTask.getResult().exists()) {
+                                                        DocumentSnapshot taskDoc = taskDocTask.getResult();
+                                                        taskName = taskDoc.getString("name");
+                                                        familyId = taskDoc.getString("familyId");
+                                                    }
+
+                                                    if (familyId != null) {
+                                                        // Use WriteBatch for atomic operations
+                                                        WriteBatch batch = db.batch();
+
+                                                        // 1. Delete the completion record
+                                                        batch.delete(completionDoc.getReference());
+
+                                                        // 2. Update user's star balance
+                                                        DocumentReference userRef = db.collection("users").document(userId);
+                                                        batch.update(userRef, "starBalance", newBalance);
+
+                                                        // 3. Create transaction record for the star deduction
+                                                        Map<String, Object> transactionData = new HashMap<>();
+                                                        transactionData.put("userId", userId);
+                                                        transactionData.put("familyId", familyId);
+                                                        transactionData.put("type", "spent");
+                                                        transactionData.put("amount", -stars); // Negative amount
+                                                        transactionData.put("description", "Task uncompleted: " + taskName);
+                                                        transactionData.put("timestamp", System.currentTimeMillis());
+                                                        transactionData.put("relatedTaskId", taskId);
+                                                        transactionData.put("relatedRewardId", null);
+                                                        transactionData.put("balanceBefore", oldBalance);
+                                                        transactionData.put("balanceAfter", newBalance);
+
+                                                        DocumentReference transactionRef = db.collection("starTransactions").document();
+                                                        batch.set(transactionRef, transactionData);
+
+                                                        // Commit batch
+                                                        batch.commit().addOnCompleteListener(batchTask -> {
+                                                            if (batchTask.isSuccessful()) {
+                                                                Log.d("FirebaseHelper", "Task uncompletion successful - New balance: " + newBalance);
+                                                                listener.onComplete(com.google.android.gms.tasks.Tasks.forResult(null));
+                                                            } else {
+                                                                Log.e("FirebaseHelper", "Task uncompletion batch failed", batchTask.getException());
+                                                                listener.onComplete(com.google.android.gms.tasks.Tasks.forException(
+                                                                        batchTask.getException() != null ? batchTask.getException() :
+                                                                                new Exception("Failed to uncomplete task")));
+                                                            }
+                                                        });
+                                                    } else {
+                                                        Log.e("FirebaseHelper", "Family ID is null");
+                                                        listener.onComplete(com.google.android.gms.tasks.Tasks.forException(
+                                                                new Exception("Family ID not found")));
+                                                    }
+                                                });
                                     } else {
-                                        // Create failure task for listener
-                                        com.google.android.gms.tasks.Task<Void> failedTask =
-                                                com.google.android.gms.tasks.Tasks.forException(
-                                                        deleteTask.getException() != null ? deleteTask.getException()
-                                                                : new Exception("Failed to delete completion record"));
-                                        listener.onComplete(failedTask);
+                                        Log.e("FirebaseHelper", "Failed to get user document for uncompletion", userTask.getException());
+                                        listener.onComplete(com.google.android.gms.tasks.Tasks.forException(
+                                                new Exception("Failed to get user data")));
                                     }
                                 });
                     } else {
-                        // No completion record found or query failed
-                        com.google.android.gms.tasks.Task<Void> failedTask =
-                                com.google.android.gms.tasks.Tasks.forException(
-                                        queryTask.getException() != null ? queryTask.getException()
-                                                : new Exception("No completion record found"));
-                        listener.onComplete(failedTask);
+                        Log.w("FirebaseHelper", "No completion record found for uncompletion");
+                        listener.onComplete(com.google.android.gms.tasks.Tasks.forException(
+                                new Exception("No completion record found")));
                     }
                 });
     }
@@ -1123,7 +1175,10 @@ public class FirebaseHelper {
         }
     }
 
+
     public static void getStarTransactions(String userId, String familyId, StarTransactionsCallback callback) {
+        Log.d("FirebaseHelper", "Loading star transactions for userId: " + userId + ", familyId: " + familyId);
+
         // Query without orderBy first to avoid index issues, then sort in memory
         db.collection("starTransactions")
                 .whereEqualTo("userId", userId)
@@ -1132,9 +1187,14 @@ public class FirebaseHelper {
                 .addOnCompleteListener(task -> {
                     if (task.isSuccessful()) {
                         List<StarTransaction> transactions = new ArrayList<>();
+                        Log.d("FirebaseHelper", "Found " + task.getResult().size() + " transaction documents");
+
                         for (DocumentSnapshot doc : task.getResult()) {
                             StarTransaction transaction = documentToStarTransaction(doc);
                             transactions.add(transaction);
+                            Log.d("FirebaseHelper", "Transaction: " + transaction.getDescription() +
+                                    ", Amount: " + transaction.getAmount() +
+                                    ", Type: " + transaction.getType());
                         }
 
                         // Sort by timestamp in memory (newest first)
@@ -1146,14 +1206,17 @@ public class FirebaseHelper {
                             transactions = transactions.subList(0, 100);
                         }
 
+                        Log.d("FirebaseHelper", "Returning " + transactions.size() + " sorted transactions");
                         callback.onTransactionsLoaded(transactions);
                     } else {
                         String error = task.getException() != null ?
                                 task.getException().getMessage() : "Failed to load transactions";
+                        Log.e("FirebaseHelper", "Failed to load transactions: " + error, task.getException());
                         callback.onError(error);
                     }
                 });
     }
+
     // ==================== CHILD PROFILE MANAGEMENT ====================
 
     public static void getChildProfiles(OnChildProfilesLoadedListener listener) {
