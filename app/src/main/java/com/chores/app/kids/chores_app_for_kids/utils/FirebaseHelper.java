@@ -24,6 +24,7 @@ import com.chores.app.kids.chores_app_for_kids.models.StarTransaction;
 import com.chores.app.kids.chores_app_for_kids.models.RedeemedReward;
 import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -443,9 +444,6 @@ public class FirebaseHelper {
     }
 
     public static void completeTask(String taskId, String userId, OnCompleteListener<Void> listener) {
-        // Use batch write to update task completion and award stars
-        WriteBatch batch = db.batch();
-
         // First get the task to know star reward
         db.collection("tasks").document(taskId).get()
                 .addOnCompleteListener(taskResult -> {
@@ -454,6 +452,10 @@ public class FirebaseHelper {
                         Long starReward = taskDoc.getLong("starReward");
                         int stars = starReward != null ? starReward.intValue() : 0;
                         String familyId = taskDoc.getString("familyId");
+                        String taskName = taskDoc.getString("name");
+
+                        // Use WriteBatch for atomic operations
+                        WriteBatch batch = db.batch();
 
                         // Create task completion record
                         Map<String, Object> completionData = new HashMap<>();
@@ -466,11 +468,43 @@ public class FirebaseHelper {
                         DocumentReference completionRef = db.collection("taskCompletions").document();
                         batch.set(completionRef, completionData);
 
-                        // Update user's star balance
-                        updateStarBalance(userId, stars, familyId, "Task completed: " + taskDoc.getString("name"), taskId, null);
+                        // Get current user balance for transaction record
+                        db.collection("users").document(userId).get()
+                                .addOnCompleteListener(userTask -> {
+                                    if (userTask.isSuccessful() && userTask.getResult().exists()) {
+                                        DocumentSnapshot userDoc = userTask.getResult();
+                                        Long currentBalance = userDoc.getLong("starBalance");
+                                        int oldBalance = currentBalance != null ? currentBalance.intValue() : 0;
+                                        int newBalance = oldBalance + stars;
 
-                        // Commit batch
-                        batch.commit().addOnCompleteListener(listener);
+                                        // Update user's star balance
+                                        DocumentReference userRef = db.collection("users").document(userId);
+                                        batch.update(userRef, "starBalance", newBalance);
+
+                                        // Create transaction record
+                                        Map<String, Object> transactionData = new HashMap<>();
+                                        transactionData.put("userId", userId);
+                                        transactionData.put("familyId", familyId);
+                                        transactionData.put("type", "earned");
+                                        transactionData.put("amount", stars);
+                                        transactionData.put("description", "Task completed: " + taskName);
+                                        transactionData.put("timestamp", System.currentTimeMillis());
+                                        transactionData.put("relatedTaskId", taskId);
+                                        transactionData.put("relatedRewardId", null);
+                                        transactionData.put("balanceBefore", oldBalance);
+                                        transactionData.put("balanceAfter", newBalance);
+
+                                        DocumentReference transactionRef = db.collection("starTransactions").document();
+                                        batch.set(transactionRef, transactionData);
+
+                                        // Commit batch
+                                        batch.commit().addOnCompleteListener(listener);
+                                    } else {
+                                        // Fallback: just update without transaction record
+                                        updateStarBalance(userId, stars, familyId, "Task completed: " + taskName, taskId, null);
+                                        batch.commit().addOnCompleteListener(listener);
+                                    }
+                                });
                     } else {
                         // Pass the failure to the listener
                         com.google.android.gms.tasks.Task<Void> failedTask = com.google.android.gms.tasks.Tasks.forException(
@@ -479,7 +513,6 @@ public class FirebaseHelper {
                     }
                 });
     }
-
     public static void uncompleteTask(String taskId, String userId, OnCompleteListener<Void> listener) {
         String today = getCurrentDateString();
 
@@ -1025,48 +1058,51 @@ public class FirebaseHelper {
     // ==================== STAR MANAGEMENT ====================
 
     public static void updateStarBalance(String userId, int amount, String familyId, String description, String taskId, String rewardId) {
-        // Get current balance and update
+        // Get current balance and update atomically
         db.collection("users").document(userId).get()
                 .addOnCompleteListener(task -> {
                     if (task.isSuccessful() && task.getResult().exists()) {
                         DocumentSnapshot document = task.getResult();
                         Long currentBalance = document.getLong("starBalance");
-                        int newBalance = (currentBalance != null ? currentBalance.intValue() : 0) + amount;
+                        int oldBalance = currentBalance != null ? currentBalance.intValue() : 0;
+                        int newBalance = Math.max(0, oldBalance + amount);
 
-                        // Ensure balance doesn't go negative
-                        newBalance = Math.max(0, newBalance);
+                        // Use WriteBatch for atomic operations
+                        WriteBatch batch = db.batch();
 
                         // Update user balance
-                        db.collection("users").document(userId)
-                                .update("starBalance", newBalance);
+                        DocumentReference userRef = db.collection("users").document(userId);
+                        batch.update(userRef, "starBalance", newBalance);
 
                         // Create transaction record
-                        StarTransaction transaction = new StarTransaction();
-                        transaction.setUserId(userId);
-                        transaction.setFamilyId(familyId);
-                        transaction.setType(amount > 0 ? "earned" : "spent");
-                        transaction.setAmount(Math.abs(amount));
-                        transaction.setDescription(description);
-                        transaction.setTimestamp(System.currentTimeMillis());
-                        transaction.setRelatedTaskId(taskId);
-                        transaction.setRelatedRewardId(rewardId);
-
                         Map<String, Object> transactionData = new HashMap<>();
-                        transactionData.put("userId", transaction.getUserId());
-                        transactionData.put("familyId", transaction.getFamilyId());
-                        transactionData.put("type", transaction.getType());
-                        transactionData.put("amount", transaction.getAmount());
-                        transactionData.put("description", transaction.getDescription());
-                        transactionData.put("timestamp", transaction.getTimestamp());
-                        transactionData.put("relatedTaskId", transaction.getRelatedTaskId());
-                        transactionData.put("relatedRewardId", transaction.getRelatedRewardId());
+                        transactionData.put("userId", userId);
+                        transactionData.put("familyId", familyId);
+                        transactionData.put("type", amount > 0 ? "earned" : "spent");
+                        transactionData.put("amount", amount); // Keep original amount (positive/negative)
+                        transactionData.put("description", description);
+                        transactionData.put("timestamp", System.currentTimeMillis());
+                        transactionData.put("relatedTaskId", taskId);
+                        transactionData.put("relatedRewardId", rewardId);
+                        transactionData.put("balanceBefore", oldBalance);
                         transactionData.put("balanceAfter", newBalance);
 
-                        db.collection("starTransactions").add(transactionData);
+                        DocumentReference transactionRef = db.collection("starTransactions").document();
+                        batch.set(transactionRef, transactionData);
+
+                        // Commit batch
+                        batch.commit().addOnCompleteListener(batchTask -> {
+                            if (batchTask.isSuccessful()) {
+                                Log.d("FirebaseHelper", "Star balance updated successfully: " + userId + " new balance: " + newBalance);
+                            } else {
+                                Log.e("FirebaseHelper", "Failed to update star balance", batchTask.getException());
+                            }
+                        });
+                    } else {
+                        Log.e("FirebaseHelper", "Failed to get user document for star balance update", task.getException());
                     }
                 });
     }
-
     public static void getUserStarBalance(StarBalanceCallback callback) {
         FirebaseUser currentUser = auth.getCurrentUser();
         if (currentUser != null) {
@@ -1088,11 +1124,10 @@ public class FirebaseHelper {
     }
 
     public static void getStarTransactions(String userId, String familyId, StarTransactionsCallback callback) {
+        // Query without orderBy first to avoid index issues, then sort in memory
         db.collection("starTransactions")
                 .whereEqualTo("userId", userId)
                 .whereEqualTo("familyId", familyId)
-                .orderBy("timestamp", Query.Direction.DESCENDING)
-                .limit(50) // Get last 50 transactions
                 .get()
                 .addOnCompleteListener(task -> {
                     if (task.isSuccessful()) {
@@ -1101,13 +1136,24 @@ public class FirebaseHelper {
                             StarTransaction transaction = documentToStarTransaction(doc);
                             transactions.add(transaction);
                         }
+
+                        // Sort by timestamp in memory (newest first)
+                        Collections.sort(transactions, (t1, t2) ->
+                                Long.compare(t2.getTimestamp(), t1.getTimestamp()));
+
+                        // Limit to last 100 transactions
+                        if (transactions.size() > 100) {
+                            transactions = transactions.subList(0, 100);
+                        }
+
                         callback.onTransactionsLoaded(transactions);
                     } else {
-                        callback.onError("Failed to load transactions");
+                        String error = task.getException() != null ?
+                                task.getException().getMessage() : "Failed to load transactions";
+                        callback.onError(error);
                     }
                 });
     }
-
     // ==================== CHILD PROFILE MANAGEMENT ====================
 
     public static void getChildProfiles(OnChildProfilesLoadedListener listener) {
@@ -1645,6 +1691,7 @@ public class FirebaseHelper {
         transaction.setFamilyId(doc.getString("familyId"));
         transaction.setType(doc.getString("type"));
 
+        // Handle amount properly (can be positive or negative)
         Long amount = doc.getLong("amount");
         transaction.setAmount(amount != null ? amount.intValue() : 0);
 
@@ -1655,6 +1702,17 @@ public class FirebaseHelper {
 
         transaction.setRelatedTaskId(doc.getString("relatedTaskId"));
         transaction.setRelatedRewardId(doc.getString("relatedRewardId"));
+
+        // Add balance information if available
+        Long balanceBefore = doc.getLong("balanceBefore");
+        if (balanceBefore != null) {
+            transaction.setBalanceBefore(balanceBefore.intValue());
+        }
+
+        Long balanceAfter = doc.getLong("balanceAfter");
+        if (balanceAfter != null) {
+            transaction.setBalanceAfter(balanceAfter.intValue());
+        }
 
         return transaction;
     }
@@ -2619,20 +2677,39 @@ public class FirebaseHelper {
                         int newBalance = Math.max(0, oldBalance + amount);
                         String familyId = doc.getString("familyId");
 
+                        // Use WriteBatch for atomic operations
+                        WriteBatch batch = db.batch();
+
                         // Update balance
-                        db.collection("users").document(childId)
-                                .update("starBalance", newBalance)
-                                .addOnCompleteListener(updateTask -> {
-                                    if (updateTask.isSuccessful()) {
-                                        // Create transaction record
-                                        createStarTransaction(childId, familyId, "adjustment", amount, description);
-                                        listener.onSuccess(newBalance);
-                                    } else {
-                                        String error = updateTask.getException() != null ?
-                                                updateTask.getException().getMessage() : "Failed to update balance";
-                                        listener.onError(error);
-                                    }
-                                });
+                        DocumentReference userRef = db.collection("users").document(childId);
+                        batch.update(userRef, "starBalance", newBalance);
+
+                        // Create transaction record
+                        Map<String, Object> transactionData = new HashMap<>();
+                        transactionData.put("userId", childId);
+                        transactionData.put("familyId", familyId);
+                        transactionData.put("type", "adjustment");
+                        transactionData.put("amount", amount);
+                        transactionData.put("description", description);
+                        transactionData.put("timestamp", System.currentTimeMillis());
+                        transactionData.put("relatedTaskId", null);
+                        transactionData.put("relatedRewardId", null);
+                        transactionData.put("balanceBefore", oldBalance);
+                        transactionData.put("balanceAfter", newBalance);
+
+                        DocumentReference transactionRef = db.collection("starTransactions").document();
+                        batch.set(transactionRef, transactionData);
+
+                        // Commit batch
+                        batch.commit().addOnCompleteListener(batchTask -> {
+                            if (batchTask.isSuccessful()) {
+                                listener.onSuccess(newBalance);
+                            } else {
+                                String error = batchTask.getException() != null ?
+                                        batchTask.getException().getMessage() : "Failed to update balance";
+                                listener.onError(error);
+                            }
+                        });
                     } else {
                         String error = task.getException() != null ?
                                 task.getException().getMessage() : "Child not found";
@@ -2640,7 +2717,6 @@ public class FirebaseHelper {
                     }
                 });
     }
-
     // Reset child star balance
     public void resetChildStarBalance(String childId, OnStarBalanceResetListener listener) {
         db.collection("users").document(childId).get()

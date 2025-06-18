@@ -11,6 +11,11 @@ public class StarTransaction {
     private String relatedRewardId;
     private String familyId;
 
+    // Add these new fields
+    private int balanceBefore;
+    private int balanceAfter;
+
+
     public StarTransaction() {
         // Empty constructor required for Firestore
     }
@@ -25,6 +30,14 @@ public class StarTransaction {
     }
 
     // Getters and Setters
+
+    public int getBalanceBefore() { return balanceBefore; }
+    public void setBalanceBefore(int balanceBefore) { this.balanceBefore = balanceBefore; }
+
+    public int getBalanceAfter() { return balanceAfter; }
+    public void setBalanceAfter(int balanceAfter) { this.balanceAfter = balanceAfter; }
+
+
     public String getTransactionId() { return transactionId; }
     public void setTransactionId(String transactionId) { this.transactionId = transactionId; }
 
