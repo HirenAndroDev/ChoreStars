@@ -267,12 +267,17 @@ public class KidRewardsFragment extends Fragment {
         // Show loading state
         showRedemptionInProgress(reward);
 
-        // The existing FirebaseHelper.redeemReward method has been updated to save to both
-        // rewardRedemptions and redeemedRewards collections, so no changes needed here
-        FirebaseHelper.redeemReward(reward.getRewardId(), childId, result -> {
+        Log.d("KidRewardsFragment", "Processing reward redemption for " + childId +
+                " - Reward: " + reward.getName() + " (" + reward.getStarCost() + " stars)");
+
+        // CHANGED: Use redeemRewardWithSelectedChild instead of redeemReward to ensure consistency
+        // This matches the logic used in RewardsFragment and ensures proper database saving
+        FirebaseHelper.redeemRewardWithSelectedChild(reward.getRewardId(), childId, result -> {
             if (getActivity() != null) {
                 getActivity().runOnUiThread(() -> {
                     if (result.isSuccessful()) {
+                        Log.d("KidRewardsFragment", "Reward redeemed successfully for child " + childId);
+
                         // Redemption successful
                         celebrateRedemption(reward);
 
@@ -289,15 +294,52 @@ public class KidRewardsFragment extends Fragment {
                             ((KidDashboardActivity) getActivity()).onRewardRedeemed(reward);
                         }
 
+                        // ADDED: Refresh the redeem history to show the new redemption
+                        refreshRedeemHistory();
+
                     } else {
                         // Redemption failed
+                        String errorMessage = result.getException() != null ?
+                                result.getException().getMessage() : "Failed to redeem reward";
+                        Log.e("KidRewardsFragment", "Failed to redeem reward: " + errorMessage);
                         SoundHelper.playErrorSound(getContext());
-
-
                     }
                 });
             }
         });
+    }
+
+    // ADDED: Method to refresh redeem history (similar to RewardsFragment)
+    private void refreshRedeemHistory() {
+        try {
+            // Find and refresh any RewardRedeemFragment that might be active
+            if (getActivity() != null) {
+                androidx.fragment.app.FragmentManager fragmentManager = getActivity().getSupportFragmentManager();
+
+                // Check for RewardRedeemFragment in the current activity's fragments
+                List<androidx.fragment.app.Fragment> fragments = fragmentManager.getFragments();
+                for (androidx.fragment.app.Fragment fragment : fragments) {
+                    if (fragment instanceof com.chores.app.kids.chores_app_for_kids.fragments.RewardRedeemFragment) {
+                        ((com.chores.app.kids.chores_app_for_kids.fragments.RewardRedeemFragment) fragment).refreshRedeemedRewards();
+                        Log.d("KidRewardsFragment", "Refreshed RewardRedeemFragment");
+                        break;
+                    }
+                    // Also check child fragments (in case it's in a ViewPager)
+                    if (fragment != null) {
+                        List<androidx.fragment.app.Fragment> childFragments = fragment.getChildFragmentManager().getFragments();
+                        for (androidx.fragment.app.Fragment childFragment : childFragments) {
+                            if (childFragment instanceof com.chores.app.kids.chores_app_for_kids.fragments.RewardRedeemFragment) {
+                                ((com.chores.app.kids.chores_app_for_kids.fragments.RewardRedeemFragment) childFragment).refreshRedeemedRewards();
+                                Log.d("KidRewardsFragment", "Refreshed child RewardRedeemFragment");
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            Log.w("KidRewardsFragment", "Could not refresh redeem history", e);
+        }
     }
 
     private void showRedemptionInProgress(Reward reward) {
@@ -312,8 +354,6 @@ public class KidRewardsFragment extends Fragment {
 
         // Show reward redemption animation
         showRedemptionAnimation(reward);
-
-
     }
 
     private void showRedemptionAnimation(Reward reward) {
@@ -384,7 +424,6 @@ public class KidRewardsFragment extends Fragment {
                 })
                 .show();
 
-
         // Shake the reward item
         shakeRewardItem(reward);
     }
@@ -430,8 +469,6 @@ public class KidRewardsFragment extends Fragment {
         // Refresh rewards and star balance when fragment becomes visible
         loadUserData();
         loadRewards();
-
-
     }
 
     // Custom ItemDecoration for grid spacing
