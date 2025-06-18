@@ -2693,44 +2693,66 @@ public class FirebaseHelper {
 
     // Get star transactions for a specific child
     public void getStarTransactions(String childId, OnStarTransactionsLoadedListener listener) {
-        getCurrentUser(new CurrentUserCallback() {
-            @Override
-            public void onUserLoaded(User user) {
-                if (user.getFamilyId() != null) {
-                    db.collection("starTransactions")
-                            .whereEqualTo("userId", childId)
-                            .whereEqualTo("familyId", user.getFamilyId())
-                            .orderBy("timestamp", Query.Direction.DESCENDING)
-                            .limit(100)
-                            .get()
-                            .addOnCompleteListener(task -> {
-                                if (task.isSuccessful()) {
-                                    List<StarTransaction> transactions = new ArrayList<>();
-                                    for (DocumentSnapshot doc : task.getResult()) {
-                                        StarTransaction transaction = documentToStarTransaction(doc);
-                                        transactions.add(transaction);
-                                    }
-                                    listener.onTransactionsLoaded(transactions);
-                                } else {
-                                    String error = task.getException() != null ?
-                                            task.getException().getMessage() : "Failed to load transactions";
-                                    listener.onError(error);
-                                }
-                            });
-                } else {
-                    listener.onError("User has no family ID");
-                }
-            }
+        // Get family ID from child's document first
+        db.collection("users").document(childId).get()
+                .addOnCompleteListener(childTask -> {
+                    if (childTask.isSuccessful() && childTask.getResult().exists()) {
+                        DocumentSnapshot childDoc = childTask.getResult();
+                        String familyId = childDoc.getString("familyId");
 
-            @Override
-            public void onError(String error) {
-                listener.onError(error);
-            }
-        });
+                        if (familyId != null) {
+                            Log.d("FirebaseHelper", "Loading star transactions for childId: " + childId + ", familyId: " + familyId);
+
+                            // Query without orderBy to avoid index issues, sort in memory
+                            db.collection("starTransactions")
+                                    .whereEqualTo("userId", childId)
+                                    .whereEqualTo("familyId", familyId)
+                                    .get()
+                                    .addOnCompleteListener(task -> {
+                                        if (task.isSuccessful()) {
+                                            List<StarTransaction> transactions = new ArrayList<>();
+                                            Log.d("FirebaseHelper", "Found " + task.getResult().size() + " transactions");
+
+                                            for (DocumentSnapshot doc : task.getResult()) {
+                                                StarTransaction transaction = documentToStarTransaction(doc);
+                                                transactions.add(transaction);
+                                                Log.d("FirebaseHelper", "Transaction: " + transaction.getDescription() +
+                                                        ", Amount: " + transaction.getAmount() +
+                                                        ", Type: " + transaction.getType());
+                                            }
+
+                                            // Sort by timestamp (newest first)
+                                            Collections.sort(transactions, (t1, t2) ->
+                                                    Long.compare(t2.getTimestamp(), t1.getTimestamp()));
+
+                                            // Limit to 100 most recent
+                                            if (transactions.size() > 100) {
+                                                transactions = transactions.subList(0, 100);
+                                            }
+
+                                            listener.onTransactionsLoaded(transactions);
+                                        } else {
+                                            String error = task.getException() != null ?
+                                                    task.getException().getMessage() : "Failed to load transactions";
+                                            Log.e("FirebaseHelper", "Error loading transactions: " + error, task.getException());
+                                            listener.onError(error);
+                                        }
+                                    });
+                        } else {
+                            listener.onError("Child has no family ID");
+                        }
+                    } else {
+                        String error = childTask.getException() != null ?
+                                childTask.getException().getMessage() : "Child not found";
+                        listener.onError(error);
+                    }
+                });
     }
 
     // Adjust child star balance
     public void adjustChildStarBalance(String childId, int amount, String description, OnStarBalanceUpdatedListener listener) {
+        Log.d("FirebaseHelper", "Adjusting star balance for child: " + childId + ", amount: " + amount);
+
         db.collection("users").document(childId).get()
                 .addOnCompleteListener(task -> {
                     if (task.isSuccessful() && task.getResult().exists()) {
@@ -2739,6 +2761,8 @@ public class FirebaseHelper {
                         int oldBalance = currentBalance != null ? currentBalance.intValue() : 0;
                         int newBalance = Math.max(0, oldBalance + amount);
                         String familyId = doc.getString("familyId");
+
+                        Log.d("FirebaseHelper", "Balance adjustment: " + oldBalance + " + " + amount + " = " + newBalance);
 
                         // Use WriteBatch for atomic operations
                         WriteBatch batch = db.batch();
@@ -2766,22 +2790,27 @@ public class FirebaseHelper {
                         // Commit batch
                         batch.commit().addOnCompleteListener(batchTask -> {
                             if (batchTask.isSuccessful()) {
+                                Log.d("FirebaseHelper", "Star balance adjustment successful");
                                 listener.onSuccess(newBalance);
                             } else {
                                 String error = batchTask.getException() != null ?
                                         batchTask.getException().getMessage() : "Failed to update balance";
+                                Log.e("FirebaseHelper", "Error adjusting balance: " + error, batchTask.getException());
                                 listener.onError(error);
                             }
                         });
                     } else {
                         String error = task.getException() != null ?
                                 task.getException().getMessage() : "Child not found";
+                        Log.e("FirebaseHelper", "Error finding child: " + error, task.getException());
                         listener.onError(error);
                     }
                 });
     }
     // Reset child star balance
     public void resetChildStarBalance(String childId, OnStarBalanceResetListener listener) {
+        Log.d("FirebaseHelper", "Resetting star balance for child: " + childId);
+
         db.collection("users").document(childId).get()
                 .addOnCompleteListener(task -> {
                     if (task.isSuccessful() && task.getResult().exists()) {
@@ -2790,23 +2819,49 @@ public class FirebaseHelper {
                         Long currentBalance = doc.getLong("starBalance");
                         int oldBalance = currentBalance != null ? currentBalance.intValue() : 0;
 
+                        Log.d("FirebaseHelper", "Resetting balance from " + oldBalance + " to 0");
+
+                        // Use WriteBatch for atomic operations
+                        WriteBatch batch = db.batch();
+
                         // Update balance to 0
-                        db.collection("users").document(childId)
-                                .update("starBalance", 0)
-                                .addOnCompleteListener(updateTask -> {
-                                    if (updateTask.isSuccessful()) {
-                                        // Create reset transaction record
-                                        createStarTransaction(childId, familyId, "reset", -oldBalance, "Balance Reset");
-                                        listener.onSuccess();
-                                    } else {
-                                        String error = updateTask.getException() != null ?
-                                                updateTask.getException().getMessage() : "Failed to reset balance";
-                                        listener.onError(error);
-                                    }
-                                });
+                        DocumentReference userRef = db.collection("users").document(childId);
+                        batch.update(userRef, "starBalance", 0);
+
+                        // Create reset transaction record
+                        if (oldBalance > 0) {
+                            Map<String, Object> transactionData = new HashMap<>();
+                            transactionData.put("userId", childId);
+                            transactionData.put("familyId", familyId);
+                            transactionData.put("type", "reset");
+                            transactionData.put("amount", -oldBalance);
+                            transactionData.put("description", "Balance Reset");
+                            transactionData.put("timestamp", System.currentTimeMillis());
+                            transactionData.put("relatedTaskId", null);
+                            transactionData.put("relatedRewardId", null);
+                            transactionData.put("balanceBefore", oldBalance);
+                            transactionData.put("balanceAfter", 0);
+
+                            DocumentReference transactionRef = db.collection("starTransactions").document();
+                            batch.set(transactionRef, transactionData);
+                        }
+
+                        // Commit batch
+                        batch.commit().addOnCompleteListener(batchTask -> {
+                            if (batchTask.isSuccessful()) {
+                                Log.d("FirebaseHelper", "Star balance reset successful");
+                                listener.onSuccess();
+                            } else {
+                                String error = batchTask.getException() != null ?
+                                        batchTask.getException().getMessage() : "Failed to reset balance";
+                                Log.e("FirebaseHelper", "Error resetting balance: " + error, batchTask.getException());
+                                listener.onError(error);
+                            }
+                        });
                     } else {
                         String error = task.getException() != null ?
                                 task.getException().getMessage() : "Child not found";
+                        Log.e("FirebaseHelper", "Error finding child for reset: " + error, task.getException());
                         listener.onError(error);
                     }
                 });
@@ -2814,61 +2869,58 @@ public class FirebaseHelper {
 
     // Clear transaction history for a child
     public void clearStarTransactionHistory(String childId, OnTransactionHistoryClearedListener listener) {
-        getCurrentUser(new CurrentUserCallback() {
-            @Override
-            public void onUserLoaded(User user) {
-                if (user.getFamilyId() != null) {
-                    db.collection("starTransactions")
-                            .whereEqualTo("userId", childId)
-                            .whereEqualTo("familyId", user.getFamilyId())
-                            .get()
-                            .addOnCompleteListener(task -> {
-                                if (task.isSuccessful()) {
-                                    WriteBatch batch = db.batch();
-                                    for (DocumentSnapshot doc : task.getResult()) {
-                                        batch.delete(doc.getReference());
-                                    }
+        Log.d("FirebaseHelper", "Clearing transaction history for child: " + childId);
 
-                                    batch.commit().addOnCompleteListener(batchTask -> {
-                                        if (batchTask.isSuccessful()) {
-                                            listener.onSuccess();
+        // Get family ID from child's document first
+        db.collection("users").document(childId).get()
+                .addOnCompleteListener(childTask -> {
+                    if (childTask.isSuccessful() && childTask.getResult().exists()) {
+                        DocumentSnapshot childDoc = childTask.getResult();
+                        String familyId = childDoc.getString("familyId");
+
+                        if (familyId != null) {
+                            db.collection("starTransactions")
+                                    .whereEqualTo("userId", childId)
+                                    .whereEqualTo("familyId", familyId)
+                                    .get()
+                                    .addOnCompleteListener(task -> {
+                                        if (task.isSuccessful()) {
+                                            WriteBatch batch = db.batch();
+                                            int transactionCount = task.getResult().size();
+
+                                            Log.d("FirebaseHelper", "Found " + transactionCount + " transactions to delete");
+
+                                            for (DocumentSnapshot doc : task.getResult()) {
+                                                batch.delete(doc.getReference());
+                                            }
+
+                                            batch.commit().addOnCompleteListener(batchTask -> {
+                                                if (batchTask.isSuccessful()) {
+                                                    Log.d("FirebaseHelper", "Successfully cleared " + transactionCount + " transactions");
+                                                    listener.onSuccess();
+                                                } else {
+                                                    String error = batchTask.getException() != null ?
+                                                            batchTask.getException().getMessage() : "Failed to clear history";
+                                                    Log.e("FirebaseHelper", "Error clearing history: " + error, batchTask.getException());
+                                                    listener.onError(error);
+                                                }
+                                            });
                                         } else {
-                                            String error = batchTask.getException() != null ?
-                                                    batchTask.getException().getMessage() : "Failed to clear history";
+                                            String error = task.getException() != null ?
+                                                    task.getException().getMessage() : "Failed to load transactions";
+                                            Log.e("FirebaseHelper", "Error loading transactions for clearing: " + error, task.getException());
                                             listener.onError(error);
                                         }
                                     });
-                                } else {
-                                    String error = task.getException() != null ?
-                                            task.getException().getMessage() : "Failed to load transactions";
-                                    listener.onError(error);
-                                }
-                            });
-                } else {
-                    listener.onError("User has no family ID");
-                }
-            }
-
-            @Override
-            public void onError(String error) {
-                listener.onError(error);
-            }
-        });
-    }
-
-    // Helper method to create star transaction record
-    private void createStarTransaction(String childId, String familyId, String type, int amount, String description) {
-        Map<String, Object> transactionData = new HashMap<>();
-        transactionData.put("userId", childId);
-        transactionData.put("familyId", familyId);
-        transactionData.put("type", type);
-        transactionData.put("amount", amount);
-        transactionData.put("description", description);
-        transactionData.put("timestamp", System.currentTimeMillis());
-        transactionData.put("relatedTaskId", null);
-        transactionData.put("relatedRewardId", null);
-
-        db.collection("starTransactions").add(transactionData);
+                        } else {
+                            listener.onError("Child has no family ID");
+                        }
+                    } else {
+                        String error = childTask.getException() != null ?
+                                childTask.getException().getMessage() : "Child not found";
+                        listener.onError(error);
+                    }
+                });
     }
 
 }

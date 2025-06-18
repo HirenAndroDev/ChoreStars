@@ -97,8 +97,6 @@ public class KidTasksFragment extends Fragment {
             // If no layout found, set click listener on profile image itself
             ivKidProfile.setOnClickListener(v -> showKidProfilesDialog());
         }
-
-        childName = String.valueOf(tvKidName);
        
     }
 
@@ -127,7 +125,12 @@ public class KidTasksFragment extends Fragment {
     }
 
     private void loadUserData() {
-        childId = AuthHelper.getCurrentUserId(getContext());
+        // Try both methods to get child ID
+        childId = AuthHelper.getChildId(getContext());
+        if (childId == null) {
+            childId = AuthHelper.getCurrentUserId(getContext());
+        }
+
         familyId = AuthHelper.getFamilyId(getContext());
 
         // Load child user data
@@ -163,6 +166,7 @@ public class KidTasksFragment extends Fragment {
     private void updateKidProfileUI(User user) {
         if (user != null) {
             tvKidName.setText(user.getName());
+            childName = user.getName();
 
             // Load profile image
             if (user.getProfileImageUrl() != null && !user.getProfileImageUrl().isEmpty()) {
@@ -185,14 +189,23 @@ public class KidTasksFragment extends Fragment {
         // Get current date string
         String currentDate = getCurrentDateString();
 
+        // Debug logs
+        System.out.println("Loading tasks for childId: " + childId + ", currentDate: " + currentDate);
+
         // Load tasks for current date only
         FirebaseHelper.getTasksForDate(childId, currentDate, new FirebaseHelper.OnTasksLoadedListener() {
             @Override
             public void onTasksLoaded(List<Task> tasks) {
                 if (getActivity() != null) {
                     getActivity().runOnUiThread(() -> {
-                        // Check completion status for each task
-                        loadTodaysCompletedTasks(tasks);
+                        System.out.println("Tasks loaded: " + (tasks != null ? tasks.size() : 0) + " tasks");
+
+                        if (tasks == null || tasks.isEmpty()) {
+                            showEmptyState("No tasks today! Great job! 🎉");
+                        } else {
+                            // Check completion status for each task
+                            loadTodaysCompletedTasks(tasks);
+                        }
                     });
                 }
             }
@@ -201,6 +214,7 @@ public class KidTasksFragment extends Fragment {
             public void onError(String error) {
                 if (getActivity() != null) {
                     getActivity().runOnUiThread(() -> {
+                        System.out.println("Error loading tasks: " + error);
                         showEmptyState("Let's try loading your tasks again!");
                     });
                 }
@@ -209,34 +223,50 @@ public class KidTasksFragment extends Fragment {
     }
 
     private void loadTodaysCompletedTasks(List<Task> activeTasks) {
+        if (activeTasks.isEmpty()) {
+            updateTaskList(activeTasks);
+            return;
+        }
+
+        final int[] completionChecksRemaining = {activeTasks.size()};
+
         // Check completion status for each task
         for (Task task : activeTasks) {
             if (task.getTaskId() != null) {
                 FirebaseHelper.getTaskCompletionForToday(childId, task.getTaskId(), isCompleted -> {
-                    if (isCompleted) {
-                        task.setStatus("completed");
-                    } else {
-                        task.setStatus("active");
+                    if (getActivity() != null) {
+                        getActivity().runOnUiThread(() -> {
+                            if (isCompleted) {
+                                task.setStatus("completed");
+                            } else {
+                                task.setStatus("active");
+                            }
+
+                            completionChecksRemaining[0]--;
+
+                            // Update UI only after all completion checks are done
+                            if (completionChecksRemaining[0] == 0) {
+                                updateTaskList(activeTasks);
+                                checkForCompletedTasks(activeTasks);
+                            }
+                        });
                     }
-
-                    // Update UI after checking all tasks
-                    updateTaskListAfterCompletionCheck(activeTasks);
                 });
+            } else {
+                // Task has no ID, mark as active
+                task.setStatus("active");
+                completionChecksRemaining[0]--;
+
+                // Update UI if this was the last check
+                if (completionChecksRemaining[0] == 0) {
+                    if (getActivity() != null) {
+                        getActivity().runOnUiThread(() -> {
+                            updateTaskList(activeTasks);
+                            checkForCompletedTasks(activeTasks);
+                        });
+                    }
+                }
             }
-        }
-
-        // If no tasks have IDs, just update with active tasks
-        if (activeTasks.stream().noneMatch(task -> task.getTaskId() != null)) {
-            updateTaskList(activeTasks);
-        }
-    }
-
-    private void updateTaskListAfterCompletionCheck(List<Task> allTasks) {
-        if (getActivity() != null) {
-            getActivity().runOnUiThread(() -> {
-                updateTaskList(allTasks);
-                checkForCompletedTasks(allTasks);
-            });
         }
     }
 

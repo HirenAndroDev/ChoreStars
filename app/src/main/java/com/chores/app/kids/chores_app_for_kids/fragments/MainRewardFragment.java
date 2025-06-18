@@ -102,6 +102,36 @@ public class MainRewardFragment extends Fragment implements KidProfilesParentDia
 
         // Prevent destroying fragments when not visible (optional, but recommended for performance)
         viewPager.setOffscreenPageLimit(tabTitles.length - 1);
+
+        // Set parent fragment reference for RewardsFragment when ViewPager is ready
+        viewPager.registerOnPageChangeCallback(new ViewPager2.OnPageChangeCallback() {
+            @Override
+            public void onPageSelected(int position) {
+                super.onPageSelected(position);
+                // Set parent reference when page is selected
+                setParentReferenceForFragments();
+            }
+        });
+
+        // Also set it immediately after setup
+        viewPager.post(() -> setParentReferenceForFragments());
+    }
+
+    private void setParentReferenceForFragments() {
+        try {
+            FragmentManager fragmentManager = requireActivity().getSupportFragmentManager();
+
+            // Find the RewardsFragment (position 0)
+            String rewardsFragmentTag = "f" + 0;
+            Fragment rewardsFragment = fragmentManager.findFragmentByTag(rewardsFragmentTag);
+            if (rewardsFragment instanceof RewardsFragment) {
+                ((RewardsFragment) rewardsFragment).setParentFragment(this);
+                Log.d(TAG, "Set parent reference for RewardsFragment");
+            }
+
+        } catch (Exception e) {
+            Log.w(TAG, "Error setting parent reference for fragments", e);
+        }
     }
 
     /**
@@ -215,6 +245,7 @@ public class MainRewardFragment extends Fragment implements KidProfilesParentDia
                 public void onChildProfileLoaded(ChildProfile updatedChild) {
                     if (getActivity() != null) {
                         getActivity().runOnUiThread(() -> {
+                            updateKidProfileUIOriginal();
                             selectedKid.setStarBalance(updatedChild.getStarBalance());
                             if (tvStarsBalance != null) {
                                 tvStarsBalance.setText(String.valueOf(updatedChild.getStarBalance()));
@@ -294,7 +325,7 @@ public class MainRewardFragment extends Fragment implements KidProfilesParentDia
         }
     }
 
-// In MainRewardFragment.java - update the notifyChildFragmentsOfSelectionChange method
+    // In MainRewardFragment.java - update the notifyChildFragmentsOfSelectionChange method
     private void notifyChildFragmentsOfSelectionChange() {
         // Notify both fragments to refresh their data
         try {
@@ -307,6 +338,8 @@ public class MainRewardFragment extends Fragment implements KidProfilesParentDia
                 String rewardsFragmentTag = "f" + 0; // ViewPager2 uses "f" + position as tag
                 Fragment rewardsFragment = fragmentManager.findFragmentByTag(rewardsFragmentTag);
                 if (rewardsFragment instanceof RewardsFragment) {
+                    // Set parent fragment reference first
+                    ((RewardsFragment) rewardsFragment).setParentFragment(this);
                     // Set the selected child directly
                     ((RewardsFragment) rewardsFragment).setSelectedChild(selectedKid);
                     // Then trigger the refresh
@@ -343,4 +376,19 @@ public class MainRewardFragment extends Fragment implements KidProfilesParentDia
         }
     }
 
+    // Method for instant star balance update without server refresh
+    public void setSelectedKidStarBalanceInstantly(int newBalance) {
+        Log.d("MainRewardFragment", "setSelectedKidStarBalanceInstantly called with: " + newBalance);
+
+        if (selectedKid != null) {
+            selectedKid.setStarBalance(newBalance);
+
+            // Update the UI instantly
+            if (tvStarsBalance != null) {
+                tvStarsBalance.setText(String.valueOf(newBalance));
+            }
+
+            Log.d("MainRewardFragment", "Instantly updated selected child star balance to: " + newBalance);
+        }
+    }
 }

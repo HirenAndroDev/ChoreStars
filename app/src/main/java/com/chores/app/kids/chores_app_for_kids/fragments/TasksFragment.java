@@ -202,25 +202,40 @@ public class TasksFragment extends Fragment implements TaskAdapter.OnTaskClickLi
         }
 
         if (isCompleted) {
-            // Complete the task
-            FirebaseHelper.completeTask(task.getTaskId(), currentUser.getUserId(), taskResult -> {
-                if (taskResult.isSuccessful()) {
-                    if (getContext() != null) {
-                        Toast.makeText(getContext(), "Task completed! Stars awarded!", Toast.LENGTH_SHORT).show();
+            // Get the first assigned child for this task
+            if (task.getAssignedKids() != null && !task.getAssignedKids().isEmpty()) {
+                String assignedChildId = task.getAssignedKids().get(0); // Use first assigned child
+                Log.d(TAG, "Completing task for assigned child: " + assignedChildId);
+
+                // Complete the task for the assigned child
+                FirebaseHelper.completeTask(task.getTaskId(), assignedChildId, taskResult -> {
+                    if (taskResult.isSuccessful()) {
+                        if (getContext() != null) {
+                            Toast.makeText(getContext(), "Task completed! Stars awarded!", Toast.LENGTH_SHORT).show();
+                        }
+                        // Refresh statistics
+                        loadTaskStatistics();
+                        updateActiveTasksCount();
+                    } else {
+                        Log.e(TAG, "Failed to complete task", taskResult.getException());
+                        if (getContext() != null) {
+                            Toast.makeText(getContext(), "Failed to complete task", Toast.LENGTH_SHORT).show();
+                        }
+                        // Revert checkbox state
+                        task.setStatus("active");
+                        taskAdapter.notifyDataSetChanged();
                     }
-                    // Refresh statistics
-                    loadTaskStatistics();
-                    updateActiveTasksCount();
-                } else {
-                    Log.e(TAG, "Failed to complete task", taskResult.getException());
-                    if (getContext() != null) {
-                        Toast.makeText(getContext(), "Failed to complete task", Toast.LENGTH_SHORT).show();
-                    }
-                    // Revert checkbox state
-                    task.setStatus("active");
-                    taskAdapter.notifyDataSetChanged();
+                });
+            } else {
+                // No assigned children - show error
+                Log.w(TAG, "Cannot complete task - no assigned children");
+                if (getContext() != null) {
+                    Toast.makeText(getContext(), "Cannot complete task - no children assigned", Toast.LENGTH_SHORT).show();
                 }
-            });
+                // Revert checkbox state
+                task.setStatus("active");
+                taskAdapter.notifyDataSetChanged();
+            }
         } else {
             // If task is unchecked, we could implement "undo completion" logic here
             // For now, just update the status

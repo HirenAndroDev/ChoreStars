@@ -616,55 +616,37 @@ public class DayTaskFragment extends Fragment {
     }
 
     private void completeTaskForSpecificDate(String taskId, String userId, String date, int starReward, TaskCompletionCallback callback) {
-        FirebaseFirestore db = FirebaseFirestore.getInstance();
-        db.collection("taskCompletions")
-                .add(new HashMap<String, Object>() {{
-                    put("taskId", taskId);
-                    put("userId", userId);
-                    put("date", date);
-                    put("starReward", starReward);
-                    put("timestamp", System.currentTimeMillis());
-                }})
-                .addOnSuccessListener(aVoid -> {
-                    if (callback != null) {
-                        callback.onCompletionStatusReceived(true);
-                    }
-                })
-                .addOnFailureListener(e -> {
-                    if (callback != null) {
-                        callback.onCompletionStatusReceived(false);
-                    }
-                });
+        // Use the proper FirebaseHelper method to ensure star transactions are created
+        FirebaseHelper.completeTask(taskId, userId, taskResult -> {
+            if (taskResult.isSuccessful()) {
+                Log.d(TAG, "Task completed successfully with star transactions");
+                if (callback != null) {
+                    callback.onCompletionStatusReceived(true);
+                }
+            } else {
+                Log.e(TAG, "Failed to complete task with star transactions", taskResult.getException());
+                if (callback != null) {
+                    callback.onCompletionStatusReceived(false);
+                }
+            }
+        });
     }
 
     private void uncompleteTaskForSpecificDate(String taskId, String userId, String date, TaskCompletionCallback callback) {
-        FirebaseFirestore db = FirebaseFirestore.getInstance();
-        db.collection("taskCompletions")
-                .whereEqualTo("userId", userId)
-                .whereEqualTo("taskId", taskId)
-                .whereEqualTo("date", date)
-                .get()
-                .addOnCompleteListener(task -> {
-                    if (task.isSuccessful() && !task.getResult().isEmpty()) {
-                        for (QueryDocumentSnapshot document : task.getResult()) {
-                            document.getReference().delete()
-                                    .addOnSuccessListener(aVoid -> {
-                                        if (callback != null) {
-                                            callback.onCompletionStatusReceived(true);
-                                        }
-                                    })
-                                    .addOnFailureListener(e -> {
-                                        if (callback != null) {
-                                            callback.onCompletionStatusReceived(false);
-                                        }
-                                    });
-                        }
-                    } else {
-                        if (callback != null) {
-                            callback.onCompletionStatusReceived(false);
-                        }
-                    }
-                });
+        // Use the proper FirebaseHelper method to ensure star transactions are handled
+        FirebaseHelper.uncompleteTask(taskId, userId, taskResult -> {
+            if (taskResult.isSuccessful()) {
+                Log.d(TAG, "Task uncompleted successfully with star transactions");
+                if (callback != null) {
+                    callback.onCompletionStatusReceived(true);
+                }
+            } else {
+                Log.e(TAG, "Failed to uncomplete task with star transactions", taskResult.getException());
+                if (callback != null) {
+                    callback.onCompletionStatusReceived(false);
+                }
+            }
+        });
     }
 
     private static class SpacingItemDecoration extends RecyclerView.ItemDecoration {

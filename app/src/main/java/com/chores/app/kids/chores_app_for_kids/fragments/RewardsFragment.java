@@ -57,11 +57,8 @@ public class RewardsFragment extends Fragment {
         initializeViews(view);
         setupRecyclerView();
         setupClickListeners();
-        // Don't load rewards immediately, wait for selected child
         // Get parent fragment reference
-        if (getParentFragment() instanceof MainRewardFragment) {
-            parentFragment = (MainRewardFragment) getParentFragment();
-        }
+        setupParentFragmentReference();
         return view;
     }
 
@@ -71,14 +68,8 @@ public class RewardsFragment extends Fragment {
 
         Log.d(TAG, "onViewCreated called");
 
-        // Ensure parent fragment reference is set
-        if (getParentFragment() instanceof MainRewardFragment) {
-            parentFragment = (MainRewardFragment) getParentFragment();
-            Log.d(TAG, "Parent fragment set successfully");
-        } else {
-            Log.w(TAG, "Parent fragment is not MainRewardFragment: " +
-                    (getParentFragment() != null ? getParentFragment().getClass().getSimpleName() : "null"));
-        }
+        // Get parent fragment reference through fragment manager since we're in ViewPager2
+        setupParentFragmentReference();
 
         // Load rewards after view is created
         loadRewards();
@@ -365,13 +356,13 @@ public class RewardsFragment extends Fragment {
                         // Update UI elements
                         updateStarBalanceDisplay(newStarBalance);
 
-                        // Refresh the selected child's star balance in parent fragment
-                        updateParentFragmentStarBalance();
+                        // INSTANT UPDATE: Update star balance in parent fragment immediately
+                        updateParentFragmentStarBalanceInstantly(newStarBalance);
 
                         // Refresh rewards list to update availability based on new balance
                         loadRewards();
 
-                        // Update star balance from server to ensure consistency
+                        // Update star balance from server to ensure consistency (background operation)
                         refreshChildStarBalanceFromServer(selectedChildId);
 
                         // Refresh redeem history in the other tab
@@ -396,11 +387,11 @@ public class RewardsFragment extends Fragment {
         }
     }
 
-    private void updateParentFragmentStarBalance() {
+    private void updateParentFragmentStarBalanceInstantly(int newStarBalance) {
         try {
             if (parentFragment != null) {
-                parentFragment.updateKidProfileUI();
-                Log.d(TAG, "Requested parent fragment to update kid profile UI");
+                parentFragment.setSelectedKidStarBalanceInstantly(newStarBalance);
+                Log.d(TAG, "Instantly updated parent fragment's star balance to: " + newStarBalance);
             }
         } catch (Exception e) {
             Log.e(TAG, "Error updating parent fragment star balance", e);
@@ -497,5 +488,43 @@ public class RewardsFragment extends Fragment {
         if (selectedChild != null) {
             selectedChild.setStarBalance(newBalance);
         }
+    }
+
+    private void setupParentFragmentReference() {
+        try {
+            // Since we're inside ViewPager2, getParentFragment() returns null
+            // We need to find the MainRewardFragment through the fragment manager
+            Fragment fragment = this;
+            while (fragment != null) {
+                if (fragment instanceof MainRewardFragment) {
+                    parentFragment = (MainRewardFragment) fragment;
+                    Log.d(TAG, "Found MainRewardFragment as ancestor");
+                    return;
+                }
+                fragment = fragment.getParentFragment();
+            }
+
+            // Alternative approach: look through fragment manager
+            if (parentFragment == null && getActivity() != null) {
+                List<Fragment> fragments = getActivity().getSupportFragmentManager().getFragments();
+                for (Fragment f : fragments) {
+                    if (f instanceof MainRewardFragment) {
+                        parentFragment = (MainRewardFragment) f;
+                        Log.d(TAG, "Found MainRewardFragment in fragment manager");
+                        return;
+                    }
+                }
+            }
+
+            Log.w(TAG, "MainRewardFragment not found");
+        } catch (Exception e) {
+            Log.e(TAG, "Error setting up parent fragment reference", e);
+        }
+    }
+
+    // Method for MainRewardFragment to set itself as parent
+    public void setParentFragment(MainRewardFragment parent) {
+        this.parentFragment = parent;
+        Log.d(TAG, "Parent fragment set directly by MainRewardFragment");
     }
 }

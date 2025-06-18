@@ -83,19 +83,27 @@ public class StarTransactionAdapter extends RecyclerView.Adapter<StarTransaction
 
         switch (type) {
             case "earned":
-                if (description.contains("task")) {
+                if (description != null && description.contains("Task completed:")) {
                     return "Task \"" + extractTaskName(description) + "\" completed";
                 } else {
-                    return description;
+                    return description != null ? description : "Stars Earned";
                 }
             case "spent":
-                if (description.contains("reward")) {
-                    return "Reward \"" + extractRewardName(description) + "\" redeemed";
+                if (description != null && description.contains("Task uncompleted:")) {
+                    return "Task \"" + extractTaskName(description) + "\" uncompleted";
+                } else if (description != null && description.contains("Redeemed:")) {
+                    return description.replace("Redeemed:", "Reward") + " redeemed";
                 } else {
-                    return description;
+                    return description != null ? description : "Stars Spent";
+                }
+            case "reward_redemption":
+                if (description != null && description.contains("Redeemed:")) {
+                    return description.replace("Redeemed:", "Reward") + " redeemed";
+                } else {
+                    return description != null ? description : "Reward Redeemed";
                 }
             case "adjustment":
-                return "Balance Adjustment";
+                return description != null ? description : "Balance Adjustment";
             case "reset":
                 return "Balance Reset";
             default:
@@ -105,8 +113,12 @@ public class StarTransactionAdapter extends RecyclerView.Adapter<StarTransaction
 
     private void setTransactionIcon(TransactionViewHolder holder, StarTransaction transaction) {
         String type = transaction.getType();
+        int amount = transaction.getAmount();
         int iconResource;
         int backgroundTint;
+
+        // Reset rotation first
+        holder.ivTransactionIcon.setRotation(0);
 
         switch (type) {
             case "earned":
@@ -114,11 +126,22 @@ public class StarTransactionAdapter extends RecyclerView.Adapter<StarTransaction
                 backgroundTint = ContextCompat.getColor(context, R.color.success_green);
                 break;
             case "spent":
+                if (transaction.getDescription() != null && transaction.getDescription().contains("uncompleted")) {
+                    // Task uncompleted - use different icon
+                    iconResource = R.drawable.ic_close;
+                    backgroundTint = ContextCompat.getColor(context, R.color.error_red);
+                } else {
+                    // Regular spending (reward)
+                    iconResource = R.drawable.ic_star;
+                    backgroundTint = ContextCompat.getColor(context, R.color.orange);
+                }
+                break;
+            case "reward_redemption":
                 iconResource = R.drawable.ic_star;
                 backgroundTint = ContextCompat.getColor(context, R.color.orange);
                 break;
             case "adjustment":
-                iconResource = R.drawable.ic_plus;
+                iconResource = amount > 0 ? R.drawable.ic_plus : R.drawable.ic_minus;
                 backgroundTint = ContextCompat.getColor(context, R.color.orange);
                 break;
             case "reset":
@@ -138,17 +161,23 @@ public class StarTransactionAdapter extends RecyclerView.Adapter<StarTransaction
     }
 
     private String extractTaskName(String description) {
-        // Extract task name from description like "Task completed: Brush teeth"
-        if (description.contains(":")) {
-            return description.substring(description.indexOf(":") + 1).trim();
+        // Extract task name from description like "Task completed: Brush teeth" or "Task uncompleted: Brush teeth"
+        if (description != null && description.contains(": ")) {
+            String[] parts = description.split(": ");
+            if (parts.length > 1) {
+                return parts[1].trim();
+            }
         }
         return "Task";
     }
 
     private String extractRewardName(String description) {
-        // Extract reward name from description like "Reward redeemed: Ice cream"
-        if (description.contains(":")) {
-            return description.substring(description.indexOf(":") + 1).trim();
+        // Extract reward name from description like "Redeemed: Ice cream"
+        if (description != null && description.contains(": ")) {
+            String[] parts = description.split(": ");
+            if (parts.length > 1) {
+                return parts[1].trim();
+            }
         }
         return "Reward";
     }

@@ -26,6 +26,7 @@ import com.chores.app.kids.chores_app_for_kids.adapters.TaskDayPagerAdapter;
 import com.chores.app.kids.chores_app_for_kids.dialogs.KidProfilesParentDialog;
 import com.chores.app.kids.chores_app_for_kids.models.ChildProfile;
 import com.chores.app.kids.chores_app_for_kids.models.WeekDay;
+import com.chores.app.kids.chores_app_for_kids.models.User;
 import com.chores.app.kids.chores_app_for_kids.utils.FirebaseHelper;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 
@@ -529,19 +530,41 @@ public class TaskManageFragment extends Fragment implements KidProfilesParentDia
     }
 
     private void refreshSelectedKidProfile() {
-        if (selectedKid != null && firebaseHelper != null) {
-            firebaseHelper.getChildProfile(selectedKid.getChildId(), new FirebaseHelper.ChildProfileCallback() {
+        if (selectedKid != null && isAdded() && getActivity() != null) {
+            Log.d(TAG, "Refreshing kid profile for: " + selectedKid.getChildId());
+
+            // Load fresh profile data directly from Firestore
+            firebaseHelper.getCurrentUser(new FirebaseHelper.CurrentUserCallback() {
                 @Override
-                public void onChildProfileLoaded(ChildProfile childProfile) {
-                    if (isAdded() && getActivity() != null) {
-                        selectedKid = childProfile;
-                        updateKidProfileUI();
+                public void onUserLoaded(User user) {
+                    if (user.getFamilyId() != null) {
+                        firebaseHelper.getChildProfilesWithInviteCodes(user.getFamilyId(), new FirebaseHelper.ChildProfilesCallback() {
+                            @Override
+                            public void onProfilesLoaded(List<ChildProfile> profiles) {
+                                if (isAdded() && getActivity() != null) {
+                                    // Find the current selected kid in the updated profiles
+                                    for (ChildProfile profile : profiles) {
+                                        if (profile.getChildId().equals(selectedKid.getChildId())) {
+                                            selectedKid = profile;
+                                            updateKidProfileUI();
+                                            Log.d(TAG, "Updated kid profile - new balance: " + profile.getStarBalance());
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+
+                            @Override
+                            public void onError(String error) {
+                                Log.e(TAG, "Error refreshing child profiles: " + error);
+                            }
+                        });
                     }
                 }
 
                 @Override
                 public void onError(String error) {
-                    Log.e(TAG, "Error refreshing child profile: " + error);
+                    Log.e(TAG, "Error getting current user for profile refresh: " + error);
                 }
             });
         }

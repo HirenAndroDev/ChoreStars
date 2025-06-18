@@ -137,12 +137,16 @@ public class RewardRedeemFragment extends Fragment {
         Log.d(TAG, "Loading redeemed rewards for family: " + familyId);
         showLoading(true);
 
-        if (isChildAccount && currentUserId != null && !currentUserId.isEmpty()) {
-            // Load child-specific redeemed rewards
+        // Check if we have a selected child (for parent viewing specific child)
+        if (selectedChild != null && selectedChild.getChildId() != null) {
+            Log.d(TAG, "Loading redeemed rewards for selected child: " + selectedChild.getName());
+            loadSpecificChildRedeemedRewards(selectedChild.getChildId());
+        } else if (isChildAccount && currentUserId != null && !currentUserId.isEmpty()) {
+            // Load child-specific redeemed rewards for logged-in child
             Log.d(TAG, "Loading child-specific redeemed rewards for user: " + currentUserId);
             loadChildRedeemedRewards();
         } else {
-            // Load all family redeemed rewards
+            // Load all family redeemed rewards (when no child is selected)
             Log.d(TAG, "Loading all family redeemed rewards");
             loadAllFamilyRedeemedRewards();
         }
@@ -159,6 +163,24 @@ public class RewardRedeemFragment extends Fragment {
             @Override
             public void onError(String error) {
                 Log.e(TAG, "Error loading child-specific redeemed rewards: " + error);
+                // Fallback to loading all family rewards
+                Log.d(TAG, "Falling back to load all family rewards");
+                loadAllFamilyRedeemedRewards();
+            }
+        });
+    }
+
+    private void loadSpecificChildRedeemedRewards(String childId) {
+        FirebaseHelper.getRedeemedRewardsForChild(childId, familyId, new FirebaseHelper.RedeemedRewardsCallback() {
+            @Override
+            public void onRedeemedRewardsLoaded(List<RedeemedReward> redeemedRewards) {
+                Log.d(TAG, "Specific child's redeemed rewards loaded successfully. Count: " + redeemedRewards.size());
+                handleRedeemedRewardsLoaded(redeemedRewards);
+            }
+
+            @Override
+            public void onError(String error) {
+                Log.e(TAG, "Error loading specific child's redeemed rewards: " + error);
                 // Fallback to loading all family rewards
                 Log.d(TAG, "Falling back to load all family rewards");
                 loadAllFamilyRedeemedRewards();
@@ -261,17 +283,15 @@ public class RewardRedeemFragment extends Fragment {
     public void onChildSelectionChanged() {
         Log.d("RewardsFragment", "onChildSelectionChanged called");
 
-        // Clear the stored selected child so it gets refreshed
-        selectedChild = null;
-
         if (getView() != null && isAdded()) {
-            loadChildRedeemedRewards();
+            // Reload rewards with the new selected child
+            loadRedeemedRewards();
         } else {
             // If view is not ready, schedule for later
             if (getView() != null) {
                 getView().post(() -> {
                     if (isAdded()) {
-                        loadChildRedeemedRewards();
+                        loadRedeemedRewards();
                     }
                 });
             }

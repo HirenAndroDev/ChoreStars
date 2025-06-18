@@ -148,9 +148,25 @@ public class StarBalanceActivity extends AppCompatActivity {
             return;
         }
 
+        Log.d(TAG, "Loading transaction history for childId: " + childId);
+        Log.d(TAG, "Child name: " + childName);
+        Log.d(TAG, "Current balance: " + currentBalance);
+
         firebaseHelper.getStarTransactions(childId, new FirebaseHelper.OnStarTransactionsLoadedListener() {
             @Override
             public void onTransactionsLoaded(List<StarTransaction> transactions) {
+                Log.d(TAG, "Transactions loaded successfully. Count: " + transactions.size());
+
+                for (StarTransaction transaction : transactions) {
+                    Log.d(TAG, "Transaction - ID: " + transaction.getTransactionId() +
+                            ", Type: " + transaction.getType() +
+                            ", Amount: " + transaction.getAmount() +
+                            ", Description: " + transaction.getDescription() +
+                            ", UserId: " + transaction.getUserId() +
+                            ", FamilyId: " + transaction.getFamilyId() +
+                            ", Timestamp: " + transaction.getTimestamp());
+                }
+
                 allTransactions.clear();
                 allTransactions.addAll(transactions);
 
