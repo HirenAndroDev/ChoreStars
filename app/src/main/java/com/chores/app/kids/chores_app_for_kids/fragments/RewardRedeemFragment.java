@@ -85,26 +85,45 @@ public class RewardRedeemFragment extends Fragment {
     private void loadRedeemedRewards() {
         Log.d(TAG, "loadRedeemedRewards called");
 
-        // Validate required data
-        if ((familyId == null || familyId.isEmpty()) && (currentUserId == null || currentUserId.isEmpty())) {
-            Log.d(TAG, "Both family ID and user ID are null/empty, trying to get from current user");
-            loadUserAndRetry();
+        // FIXED: Check if we have valid data from AuthHelper first
+        if (familyId != null && !familyId.isEmpty()) {
+            Log.d(TAG, "Found valid familyId from AuthHelper: " + familyId);
+            loadFamilyRedeemedRewards();
             return;
         }
 
-        if (familyId == null || familyId.isEmpty()) {
-            Log.e(TAG, "Family ID is still null/empty after checks");
-            showError("No family associated with this account");
+        // FIXED: For child accounts, don't try to use FirebaseHelper.getCurrentUser
+        if (isChildAccount) {
+            Log.d(TAG, "Child account detected but no familyId found");
+            showError("Unable to load family information for child account");
             updateEmptyState(true);
             return;
         }
 
-        loadFamilyRedeemedRewards();
+        // Only try to get from current user if this is a parent account
+        if ((familyId == null || familyId.isEmpty()) && !isChildAccount) {
+            Log.d(TAG, "Parent account - trying to get family ID from current user");
+            loadUserAndRetry();
+            return;
+        }
+
+        // If we get here, something is wrong
+        Log.e(TAG, "Unable to determine familyId - familyId: " + familyId + ", isChild: " + isChildAccount);
+        showError("No family associated with this account");
+        updateEmptyState(true);
     }
 
     private void loadUserAndRetry() {
         Log.d(TAG, "Loading current user to get family information");
         showLoading(true);
+
+        // FIXED: Only call this for parent accounts
+        if (isChildAccount) {
+            Log.e(TAG, "loadUserAndRetry called for child account - this should not happen");
+            showError("Child accounts should already have family information");
+            updateEmptyState(true);
+            return;
+        }
 
         FirebaseHelper.getCurrentUser(new FirebaseHelper.CurrentUserCallback() {
             @Override
@@ -297,7 +316,6 @@ public class RewardRedeemFragment extends Fragment {
             }
         }
     }
-
 
     public void setSelectedChild(ChildProfile child) {
         Log.d("RewardsFragment", "setSelectedChild called with: " +
