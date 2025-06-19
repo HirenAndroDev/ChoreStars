@@ -2886,4 +2886,102 @@ public class FirebaseHelper {
                 });
     }
 
+
+    public static void getDashboardData(String familyId, DashboardDataCallback callback) {
+        // Get comprehensive dashboard data in one call
+
+        // Get family stats first
+        getFamilyStats(familyId, new FamilyStatsCallback() {
+            @Override
+            public void onStatsLoaded(FamilyStats stats) {
+                // Get family children
+                getFamilyChildren(familyId, new FamilyChildrenCallback() {
+                    @Override
+                    public void onChildrenLoaded(List<User> children) {
+                        // Get recent transactions
+                        getRecentFamilyTransactions(familyId, 10, new StarTransactionsCallback() {
+                            @Override
+                            public void onTransactionsLoaded(List<StarTransaction> transactions) {
+                                // Combine all data
+                                DashboardData dashboardData = new DashboardData();
+                                dashboardData.setFamilyStats(stats);
+                                dashboardData.setChildren(children);
+                                dashboardData.setRecentTransactions(transactions);
+
+                                callback.onDashboardDataLoaded(dashboardData);
+                            }
+
+                            @Override
+                            public void onError(String error) {
+                                callback.onError(error);
+                            }
+                        });
+                    }
+
+                    @Override
+                    public void onError(String error) {
+                        callback.onError(error);
+                    }
+                });
+            }
+
+            @Override
+            public void onError(String error) {
+                callback.onError(error);
+            }
+        });
+    }
+
+// Add this method to your existing FirebaseHelper.java class
+
+    public static void getRecentFamilyTransactions(String familyId, int limit, StarTransactionsCallback callback) {
+        Log.d("FirebaseHelper", "Loading recent transactions for family: " + familyId + ", limit: " + limit);
+
+        db.collection("starTransactions")
+                .whereEqualTo("familyId", familyId)
+                .orderBy("timestamp", Query.Direction.DESCENDING)
+                .limit(limit)
+                .get()
+                .addOnCompleteListener(task -> {
+                    if (task.isSuccessful()) {
+                        List<StarTransaction> transactions = new ArrayList<>();
+                        Log.d("FirebaseHelper", "Found " + task.getResult().size() + " transactions");
+
+                        for (DocumentSnapshot doc : task.getResult()) {
+                            StarTransaction transaction = documentToStarTransaction(doc);
+                            transactions.add(transaction);
+                        }
+
+                        callback.onTransactionsLoaded(transactions);
+                    } else {
+                        String error = task.getException() != null ?
+                                task.getException().getMessage() : "Failed to load transactions";
+                        Log.e("FirebaseHelper", "Error loading recent transactions: " + error, task.getException());
+                        callback.onError(error);
+                    }
+                });
+    }
+    // Callback interfaces
+    public interface DashboardDataCallback {
+        void onDashboardDataLoaded(DashboardData data);
+        void onError(String error);
+    }
+
+    public static class DashboardData {
+        private FamilyStats familyStats;
+        private List<User> children;
+        private List<StarTransaction> recentTransactions;
+
+        // Getters and setters
+        public FamilyStats getFamilyStats() { return familyStats; }
+        public void setFamilyStats(FamilyStats familyStats) { this.familyStats = familyStats; }
+
+        public List<User> getChildren() { return children; }
+        public void setChildren(List<User> children) { this.children = children; }
+
+        public List<StarTransaction> getRecentTransactions() { return recentTransactions; }
+        public void setRecentTransactions(List<StarTransaction> recentTransactions) { this.recentTransactions = recentTransactions; }
+    }
+
+
 }

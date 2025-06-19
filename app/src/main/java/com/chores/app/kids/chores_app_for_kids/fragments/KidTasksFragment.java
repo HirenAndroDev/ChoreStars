@@ -5,6 +5,7 @@ import android.animation.AnimatorSet;
 import android.animation.ObjectAnimator;
 import android.app.Dialog;
 import android.content.Context;
+import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.res.ColorStateList;
 import android.os.Bundle;
@@ -461,6 +462,9 @@ public class KidTasksFragment extends Fragment {
                             // Play sound
                             SoundHelper.playClickSound(getContext());
 
+                            // Notify dashboard of task status change
+                            notifyDashboardOfTaskChange();
+
                         } else {
                             // Task uncompletion failed
                             task.setStatus("completed");
@@ -496,6 +500,9 @@ public class KidTasksFragment extends Fragment {
                             if (areAllTasksCompleted()) {
                                 showAllTasksCompletedCelebration();
                             }
+
+                            // Notify dashboard of task status change
+                            notifyDashboardOfTaskChange();
 
                         } else {
                             // Task completion failed
@@ -649,6 +656,19 @@ public class KidTasksFragment extends Fragment {
                 })
                 .setNegativeButton("Cancel", null)
                 .show();
+    }
+
+    private void notifyDashboardOfTaskChange() {
+        // Send broadcast to notify parent dashboard
+        if (getContext() != null) {
+            Intent intent = new Intent("com.chores.app.TASK_COMPLETED");
+            intent.putExtra("childId", childId);
+            intent.putExtra("familyId", familyId);
+            getContext().sendBroadcast(intent);
+
+            // Log the notification for debugging
+            System.out.println("Sent task completion broadcast for child: " + childId);
+        }
     }
 
     // Custom ItemDecoration for spacing
