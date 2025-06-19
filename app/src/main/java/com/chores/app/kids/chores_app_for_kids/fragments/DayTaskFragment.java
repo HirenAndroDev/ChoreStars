@@ -545,7 +545,7 @@ public class DayTaskFragment extends Fragment {
         }
 
         // Set task icon
-        String iconName = task.getIconName();
+        String iconName = task.getIconUrl();
         if (iconName != null && !iconName.isEmpty()) {
             if (task.getIconUrl() != null && !task.getIconUrl().isEmpty()) {
                 Glide.with(getContext())

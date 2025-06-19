@@ -7,7 +7,6 @@ public class TaskIcon {
     private String category;
     private boolean isDefault;
     private long createdTimestamp;
-    private String drawableName; // For default drawable icons
 
     public TaskIcon() {
         // Default constructor required for calls to DataSnapshot.getValue(TaskIcon.class)
@@ -70,11 +69,5 @@ public class TaskIcon {
         this.createdTimestamp = createdTimestamp;
     }
 
-    public String getDrawableName() {
-        return drawableName;
-    }
 
-    public void setDrawableName(String drawableName) {
-        this.drawableName = drawableName;
-    }
 }

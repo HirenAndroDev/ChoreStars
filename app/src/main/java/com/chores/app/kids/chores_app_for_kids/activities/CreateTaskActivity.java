@@ -220,8 +220,8 @@ public class CreateTaskActivity extends AppCompatActivity {
             public void onIconSelected(TaskIcon icon) {
                 selectedIconUrl = icon.getIconUrl();
                 // Also store drawable name for default icons
-                if (icon.getDrawableName() != null && !icon.getDrawableName().isEmpty()) {
-                    selectedIconUrl = icon.getDrawableName(); // Use drawable name as identifier
+                if (icon.getIconUrl() != null && !icon.getIconUrl().isEmpty()) {
+                    selectedIconUrl = icon.getIconUrl(); // Use drawable name as identifier
                 }
                 updateTaskIcon(icon);
             }
@@ -553,15 +553,7 @@ public class CreateTaskActivity extends AppCompatActivity {
                     .placeholder(R.drawable.ic_brush_teeth)
                     .error(R.drawable.ic_brush_teeth)
                     .into(ivTaskIcon);
-        } else if (icon.getDrawableName() != null && !icon.getDrawableName().isEmpty()) {
-            // Load from drawable resource
-            int drawableResId = getResources().getIdentifier(icon.getDrawableName(), "drawable", getPackageName());
-            if (drawableResId != 0) {
-                ivTaskIcon.setImageResource(drawableResId);
-            } else {
-                ivTaskIcon.setImageResource(R.drawable.ic_brush_teeth);
-            }
-        } else {
+        }  else {
             // Default icon
             ivTaskIcon.setImageResource(R.drawable.ic_brush_teeth);
         }

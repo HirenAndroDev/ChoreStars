@@ -1564,7 +1564,6 @@ public class FirebaseHelper {
         iconData.put("iconUrl", icon.getIconUrl());
         iconData.put("category", icon.getCategory());
         iconData.put("isDefault", icon.isDefault());
-        iconData.put("drawableName", icon.getDrawableName());
         iconData.put("createdTimestamp", icon.getCreatedTimestamp());
 
         db.collection("taskIcons")
@@ -1596,7 +1595,6 @@ public class FirebaseHelper {
         icon.setName(doc.getString("name"));
         icon.setIconUrl(doc.getString("iconUrl"));
         icon.setCategory(doc.getString("category"));
-        icon.setDrawableName(doc.getString("drawableName"));
 
         Boolean isDefault = doc.getBoolean("isDefault");
         icon.setDefault(isDefault != null && isDefault);

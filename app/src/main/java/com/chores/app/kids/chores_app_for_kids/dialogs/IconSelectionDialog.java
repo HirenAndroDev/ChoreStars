@@ -296,36 +296,42 @@ public class IconSelectionDialog extends DialogFragment {
     }
 
     private void loadTaskIcons() {
+        // Show loading indicator
+        Toast.makeText(getContext(), "Loading icons...", Toast.LENGTH_SHORT).show();
 
-            // After seeding (or if already exists), load all icons
-    FirebaseHelper.getTaskIcons(new FirebaseHelper.TaskIconsCallback() {
-                @Override
-                public void onIconsLoaded(List<TaskIcon> icons) {
-                    availableIcons.clear();
-                    availableIcons.addAll(icons);
+        // Load icons from Firestore
+        FirebaseHelper.getTaskIcons(new FirebaseHelper.TaskIconsCallback() {
+            @Override
+            public void onIconsLoaded(List<TaskIcon> icons) {
+                android.util.Log.d("IconSelectionDialog", "Loaded " + icons.size() + " icons from Firestore");
 
-                    // If no icons from Firebase, add default ones locally
-                    if (icons.isEmpty()) {
-                      //  addDefaultIcons();
-                    } else {
-                        iconAdapter.notifyDataSetChanged();
-                        // Set first icon as preview if available
-                        if (!icons.isEmpty()) {
-                            selectedIcon = icons.get(0);
-                            updatePreviewIcon();
-                        }
+                availableIcons.clear();
+                availableIcons.addAll(icons);
+
+                if (icons.isEmpty()) {
+                    // Add default icons locally if no icons from Firebase
+                    addDefaultIcons();
+                    Toast.makeText(getContext(), "Using default icons", Toast.LENGTH_SHORT).show();
+                } else {
+                    iconAdapter.notifyDataSetChanged();
+                    // Set first icon as preview if available
+                    if (!icons.isEmpty()) {
+                        selectedIcon = icons.get(0);
+                        updatePreviewIcon();
                     }
+                    Toast.makeText(getContext(), "Icons loaded successfully", Toast.LENGTH_SHORT).show();
                 }
+            }
 
-                @Override
-                public void onError(String error) {
-                    Toast.makeText(getContext(), "Failed to load icons: " + error, Toast.LENGTH_SHORT).show();
-                    // Add some default icons locally
-                  //  addDefaultIcons();
-                }
-            });
+            @Override
+            public void onError(String error) {
+                android.util.Log.e("IconSelectionDialog", "Failed to load icons: " + error);
+                Toast.makeText(getContext(), "Failed to load icons: " + error, Toast.LENGTH_SHORT).show();
 
-
+                // Add default icons as fallback
+                addDefaultIcons();
+            }
+        });
     }
 
     private void addDefaultIcons() {
@@ -357,7 +363,6 @@ public class IconSelectionDialog extends DialogFragment {
         icon.setIconUrl(""); // Empty URL for drawable resources
         icon.setCategory(category);
         icon.setDefault(true);
-        icon.setDrawableName(drawableName); // Add this field if needed
         icon.setCreatedTimestamp(System.currentTimeMillis());
         return icon;
     }

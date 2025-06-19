@@ -51,14 +51,6 @@ public class IconDialogAdapter extends RecyclerView.Adapter<IconDialogAdapter.Ic
                     .placeholder(R.drawable.ic_brush_teeth)
                     .error(R.drawable.ic_brush_teeth)
                     .into(holder.iconImage);
-        } else if (icon.getDrawableName() != null && !icon.getDrawableName().isEmpty()) {
-            // Load from drawable resource
-            int drawableResId = context.getResources().getIdentifier(icon.getDrawableName(), "drawable", context.getPackageName());
-            if (drawableResId != 0) {
-                holder.iconImage.setImageResource(drawableResId);
-            } else {
-                holder.iconImage.setImageResource(R.drawable.ic_brush_teeth);
-            }
         } else {
             // Default icon
             holder.iconImage.setImageResource(R.drawable.ic_brush_teeth);

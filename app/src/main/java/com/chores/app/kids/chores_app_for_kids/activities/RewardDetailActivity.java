@@ -154,8 +154,8 @@ public class RewardDetailActivity extends AppCompatActivity {
             @Override
             public void onIconSelected(TaskIcon icon) {
                 selectedIconUrl = icon.getIconUrl();
-                if (icon.getDrawableName() != null && !icon.getDrawableName().isEmpty()) {
-                    selectedIconUrl = icon.getDrawableName();
+                if (icon.getIconUrl() != null && !icon.getIconUrl().isEmpty()) {
+                    selectedIconUrl = icon.getIconUrl();
                 }
                 updateRewardIcon();
             }
