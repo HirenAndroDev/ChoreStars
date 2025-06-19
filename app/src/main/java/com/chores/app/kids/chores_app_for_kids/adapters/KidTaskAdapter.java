@@ -1,6 +1,7 @@
 package com.chores.app.kids.chores_app_for_kids.adapters;
 
 import android.content.Context;
+import android.content.Intent;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -12,6 +13,7 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.bumptech.glide.Glide;
 import com.chores.app.kids.chores_app_for_kids.R;
+import com.chores.app.kids.chores_app_for_kids.activities.EditTaskActivity;
 import com.chores.app.kids.chores_app_for_kids.models.Task;
 import java.util.List;
 
@@ -25,6 +27,8 @@ public class KidTaskAdapter extends RecyclerView.Adapter<KidTaskAdapter.KidTaskV
     public interface OnTaskInteractionListener {
         void onTaskCompleted(Task task);
         void onTaskClicked(Task task);
+
+        void onTaskLongClicked(Task task); // Add long click listener
     }
 
     public KidTaskAdapter(List<Task> taskList, Context context, OnTaskInteractionListener listener) {
@@ -73,7 +77,7 @@ public class KidTaskAdapter extends RecyclerView.Adapter<KidTaskAdapter.KidTaskV
         }
 
         // Set task icon
-        String iconName = task.getIconName();
+        String iconName = task.getIconUrl();
         if (iconName != null && !iconName.isEmpty()) {
             if (task.getIconUrl() != null && !task.getIconUrl().isEmpty()) {
                 // Load from URL
@@ -126,6 +130,15 @@ public class KidTaskAdapter extends RecyclerView.Adapter<KidTaskAdapter.KidTaskV
             if (listener != null) {
                 listener.onTaskClicked(task);
             }
+        });
+
+        // Add long click listener for task content to launch EditTaskActivity
+        holder.layoutTaskContent.setOnLongClickListener(v -> {
+            // Launch EditTaskActivity with task ID
+            Intent intent = new Intent(context, EditTaskActivity.class);
+            intent.putExtra(EditTaskActivity.EXTRA_TASK_ID, task.getTaskId());
+            context.startActivity(intent);
+            return true; // Consume the long click event
         });
     }
 

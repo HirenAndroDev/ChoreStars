@@ -325,4 +325,5 @@ public class RewardRedeemFragment extends Fragment {
             this.childId = child.getChildId();
         }
     }
+
 }

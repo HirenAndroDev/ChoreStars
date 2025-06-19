@@ -1572,65 +1572,6 @@ public class FirebaseHelper {
                 .addOnCompleteListener(listener);
     }
 
-    public static void seedDefaultTaskIcons(OnCompleteListener<Void> listener) {
-        // Check if default icons already exist
-        db.collection("taskIcons")
-                .whereEqualTo("isDefault", true)
-                .get()
-                .addOnCompleteListener(task -> {
-                    if (task.isSuccessful() && task.getResult().isEmpty()) {
-                        // No default icons exist, create them
-                        WriteBatch batch = db.batch();
-
-                        List<TaskIcon> defaultIcons = createDefaultTaskIcons();
-                        for (TaskIcon icon : defaultIcons) {
-                            Map<String, Object> iconData = new HashMap<>();
-                            iconData.put("name", icon.getName());
-                            iconData.put("iconUrl", icon.getIconUrl());
-                            iconData.put("category", icon.getCategory());
-                            iconData.put("isDefault", icon.isDefault());
-                            iconData.put("drawableName", icon.getDrawableName());
-                            iconData.put("createdTimestamp", icon.getCreatedTimestamp());
-
-                            DocumentReference docRef = db.collection("taskIcons").document();
-                            batch.set(docRef, iconData);
-                        }
-
-                        batch.commit().addOnCompleteListener(listener);
-                    } else {
-                        // Default icons already exist or error occurred
-                        // Create success task for listener
-                        com.google.android.gms.tasks.Task<Void> successTask = com.google.android.gms.tasks.Tasks.forResult(null);
-                        listener.onComplete(successTask);
-                    }
-                });
-    }
-
-    private static List<TaskIcon> createDefaultTaskIcons() {
-        List<TaskIcon> icons = new ArrayList<>();
-
-        icons.add(createDefaultTaskIcon("Brush Teeth", "personal_care", "ic_brush_teeth"));
-        icons.add(createDefaultTaskIcon("Clean Room", "chores", "ic_clean_room"));
-        icons.add(createDefaultTaskIcon("Do Homework", "education", "ic_homework"));
-        icons.add(createDefaultTaskIcon("Feed Pet", "pets", "ic_pet"));
-        icons.add(createDefaultTaskIcon("Take Shower", "personal_care", "ic_shower"));
-        icons.add(createDefaultTaskIcon("Make Bed", "chores", "ic_bed"));
-        icons.add(createDefaultTaskIcon("Wash Dishes", "chores", "ic_dishes"));
-        icons.add(createDefaultTaskIcon("Exercise", "health", "ic_exercise"));
-
-        return icons;
-    }
-
-    private static TaskIcon createDefaultTaskIcon(String name, String category, String drawableName) {
-        TaskIcon icon = new TaskIcon();
-        icon.setName(name);
-        icon.setIconUrl(""); // Empty for drawable resources
-        icon.setCategory(category);
-        icon.setDefault(true);
-        icon.setDrawableName(drawableName);
-        icon.setCreatedTimestamp(System.currentTimeMillis());
-        return icon;
-    }
 
     private static TaskPreset documentToTaskPreset(DocumentSnapshot doc) {
         TaskPreset preset = new TaskPreset();

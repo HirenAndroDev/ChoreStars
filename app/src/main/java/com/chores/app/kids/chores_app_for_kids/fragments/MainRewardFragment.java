@@ -110,11 +110,26 @@ public class MainRewardFragment extends Fragment implements KidProfilesParentDia
                 super.onPageSelected(position);
                 // Set parent reference when page is selected
                 setParentReferenceForFragments();
+
+                // Also notify fragments of current selection when page changes
+                if (selectedKid != null) {
+                    getView().postDelayed(() -> {
+                        notifyChildFragmentsOfSelectionChange();
+                    }, 50);
+                }
             }
         });
 
-        // Also set it immediately after setup
-        viewPager.post(() -> setParentReferenceForFragments());
+        // Also set it immediately after setup with multiple attempts to ensure it works
+        viewPager.post(() -> {
+            setParentReferenceForFragments();
+            // If we already have a selected kid, notify fragments
+            if (selectedKid != null) {
+                getView().postDelayed(() -> {
+                    notifyChildFragmentsOfSelectionChange();
+                }, 100);
+            }
+        });
     }
 
     private void setParentReferenceForFragments() {
@@ -184,6 +199,8 @@ public class MainRewardFragment extends Fragment implements KidProfilesParentDia
                 kidProfiles.addAll(profiles);
 
                 if (!kidProfiles.isEmpty()) {
+                    boolean wasKidSelected = false;
+
                     if (selectedKid == null) {
                         // Load saved selected kid
                         String savedKidId = getSavedSelectedKidId();
@@ -192,6 +209,7 @@ public class MainRewardFragment extends Fragment implements KidProfilesParentDia
                             for (ChildProfile profile : kidProfiles) {
                                 if (profile.getChildId().equals(savedKidId)) {
                                     selectedKid = profile;
+                                    wasKidSelected = true;
                                     break;
                                 }
                             }
@@ -201,6 +219,7 @@ public class MainRewardFragment extends Fragment implements KidProfilesParentDia
                         if (selectedKid == null && !kidProfiles.isEmpty()) {
                             selectedKid = kidProfiles.get(0);
                             saveSelectedKidProfile(selectedKid.getChildId()); // Save the default selection
+                            wasKidSelected = true;
                         }
                     } else {
                         // Verify that the currently selected kid is still in the profiles list
@@ -217,14 +236,17 @@ public class MainRewardFragment extends Fragment implements KidProfilesParentDia
                         if (!kidStillExists) {
                             selectedKid = kidProfiles.get(0);
                             saveSelectedKidProfile(selectedKid.getChildId());
+                            wasKidSelected = true;
                         }
                     }
 
                     updateKidProfileUI();
 
-                    // Notify child fragments about the initial selection
-                    notifyChildFragmentsOfSelectionChange();
-
+                    // Notify child fragments about the initial selection with a delay to ensure ViewPager is ready
+                    getView().postDelayed(() -> {
+                        notifyChildFragmentsOfSelectionChange();
+                        Log.d(TAG, "Notified child fragments after loading profiles");
+                    }, 200);
                 }
             }
 
@@ -316,17 +338,27 @@ public class MainRewardFragment extends Fragment implements KidProfilesParentDia
     // Update selected kid and save preference
     public void setSelectedKid(ChildProfile kidProfile) {
         if (kidProfile != null) {
+            Log.d(TAG, "setSelectedKid called with: " + kidProfile.getName());
             selectedKid = kidProfile;
             saveSelectedKidProfile(kidProfile.getChildId());
             updateKidProfileUI();
 
-            // Notify child fragments about the selection change
+            // Immediately notify child fragments about the selection change
             notifyChildFragmentsOfSelectionChange();
+
+            // Also force refresh with a slight delay to ensure everything is set up
+            getView().postDelayed(() -> {
+                notifyChildFragmentsOfSelectionChange();
+                Log.d(TAG, "Delayed notification sent for kid selection change");
+            }, 150);
         }
     }
 
     // In MainRewardFragment.java - update the notifyChildFragmentsOfSelectionChange method
     private void notifyChildFragmentsOfSelectionChange() {
+        Log.d(TAG, "=== notifyChildFragmentsOfSelectionChange called ===");
+        Log.d(TAG, "Selected kid: " + (selectedKid != null ? selectedKid.getName() + " (ID: " + selectedKid.getChildId() + ")" : "null"));
+
         // Notify both fragments to refresh their data
         try {
             ViewPager2 viewPager = getView().findViewById(R.id.viewPager);
@@ -338,26 +370,63 @@ public class MainRewardFragment extends Fragment implements KidProfilesParentDia
                 String rewardsFragmentTag = "f" + 0; // ViewPager2 uses "f" + position as tag
                 Fragment rewardsFragment = fragmentManager.findFragmentByTag(rewardsFragmentTag);
                 if (rewardsFragment instanceof RewardsFragment) {
+                    Log.d(TAG, "Found RewardsFragment, updating selection");
                     // Set parent fragment reference first
                     ((RewardsFragment) rewardsFragment).setParentFragment(this);
                     // Set the selected child directly
                     ((RewardsFragment) rewardsFragment).setSelectedChild(selectedKid);
                     // Then trigger the refresh
                     ((RewardsFragment) rewardsFragment).onChildSelectionChanged();
+                    Log.d(TAG, "Successfully updated RewardsFragment with new kid selection");
+                } else {
+                    // If fragment not found by tag, try alternative approach
+                    Log.w(TAG, "RewardsFragment not found by tag, trying alternative approach");
+                    // Post a delayed update to ensure ViewPager2 fragments are ready
+                    getView().postDelayed(() -> {
+                        notifyRewardsFragmentDirectly();
+                    }, 100);
                 }
 
                 // Find the RewardRedeemFragment (position 1)
                 String redeemFragmentTag = "f" + 1; // ViewPager2 uses "f" + position as tag
                 Fragment redeemFragment = fragmentManager.findFragmentByTag(redeemFragmentTag);
                 if (redeemFragment instanceof RewardRedeemFragment) {
+                    Log.d(TAG, "Found RewardRedeemFragment, updating selection");
                     // Set the selected child directly
                     ((RewardRedeemFragment) redeemFragment).setSelectedChild(selectedKid);
                     // Then trigger the refresh
                     ((RewardRedeemFragment) redeemFragment).onChildSelectionChanged();
+                    Log.d(TAG, "Successfully updated RewardRedeemFragment with new kid selection");
                 }
             }
         } catch (Exception e) {
-            Log.w(TAG, "Error notifying child fragments of selection change", e);
+            Log.e(TAG, "Error notifying child fragments of selection change", e);
+        }
+
+        Log.d(TAG, "=== notifyChildFragmentsOfSelectionChange completed ===");
+    }
+
+    // Alternative method to notify RewardsFragment directly
+    private void notifyRewardsFragmentDirectly() {
+        try {
+            if (viewPager != null && viewPager.getAdapter() instanceof RewardsPagerAdapter) {
+                // Force refresh of current fragment if it's RewardsFragment
+                int currentItem = viewPager.getCurrentItem();
+                FragmentManager fragmentManager = requireActivity().getSupportFragmentManager();
+
+                // Try to find fragments by different approaches
+                for (Fragment fragment : fragmentManager.getFragments()) {
+                    if (fragment instanceof RewardsFragment && fragment.isAdded()) {
+                        ((RewardsFragment) fragment).setParentFragment(this);
+                        ((RewardsFragment) fragment).setSelectedChild(selectedKid);
+                        ((RewardsFragment) fragment).onChildSelectionChanged();
+                        Log.d(TAG, "Successfully notified RewardsFragment via direct search");
+                        break;
+                    }
+                }
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "Error in direct notification", e);
         }
     }
 

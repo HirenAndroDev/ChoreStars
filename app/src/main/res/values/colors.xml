@@ -82,4 +82,8 @@
     <color name="orange">#FF9800</color>
     <color name="gray">#757575</color>
     <color name="light_background">#F5F5F5</color>
+
+    <!-- Additional colors for EditTaskActivity -->
+    <color name="red_primary">#F44336</color>
+    <color name="blue_primary">#2196F3</color>
 </resources>

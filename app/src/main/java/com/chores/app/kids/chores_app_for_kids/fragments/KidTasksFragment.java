@@ -114,6 +114,12 @@ public class KidTasksFragment extends Fragment {
             public void onTaskClicked(Task task) {
                 showTaskDetailDialog(task);
             }
+
+            @Override
+            public void onTaskLongClicked(Task task) {
+                // Handle long click - show task detail dialog for now
+                showTaskDetailDialog(task);
+            }
         });
 
         recyclerViewTasks.setLayoutManager(new LinearLayoutManager(getContext()));

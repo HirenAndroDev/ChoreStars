@@ -6,6 +6,7 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.LinearLayout;
+import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -41,6 +42,7 @@ public class RewardsFragment extends Fragment {
     private CardView btnAddReward;
     private LinearLayout layoutEmptyState, layoutAddRewardButton;
     private TextView tvStarBalance;
+    private ProgressBar progressBar; // Added
     private RewardAdapter rewardAdapter;
     private List<Reward> rewardList;
     private String familyId;
@@ -91,6 +93,7 @@ public class RewardsFragment extends Fragment {
         layoutEmptyState = view.findViewById(R.id.layout_empty_state);
         layoutAddRewardButton = view.findViewById(R.id.layout_add_reward_button);
         tvStarBalance = view.findViewById(R.id.tv_star_balance);
+        progressBar = view.findViewById(R.id.progress_bar_loading); // Fixed ID
 
         familyId = AuthHelper.getFamilyId(getContext());
         Log.d(TAG, "initializeViews - familyId from AuthHelper: " + familyId);
@@ -127,13 +130,35 @@ public class RewardsFragment extends Fragment {
         startActivity(intent);
     }
 
-    // ADD THIS METHOD - This is what's missing and causing the compilation error
     public void setSelectedChild(ChildProfile childProfile) {
-        Log.d(TAG, "setSelectedChild called with: " + (childProfile != null ? childProfile.getName() : "null"));
+        Log.d(TAG, "=== setSelectedChild called ===");
+        Log.d(TAG, "Previous child: " + (this.selectedChild != null ? this.selectedChild.getName() : "null"));
+        Log.d(TAG, "New child: " + (childProfile != null ? childProfile.getName() + " (ID: " + childProfile.getChildId() + ")" : "null"));
+
+        // Immediately clear previous data to prevent showing old kid's rewards
+        if (rewardList != null && rewardAdapter != null) {
+            rewardList.clear();
+            rewardAdapter.notifyDataSetChanged();
+            Log.d(TAG, "Cleared previous rewards data immediately");
+        }
+
         this.selectedChild = childProfile;
         if (childProfile != null) {
             this.childId = childProfile.getChildId();
+            Log.d(TAG, "Updated childId to: " + this.childId);
         }
+
+        // Immediately update UI if view is ready
+        if (getView() != null && isAdded()) {
+            Log.d(TAG, "View is ready, updating UI immediately for new child selection");
+            showLoadingState(); // Show loading immediately
+            loadRewards();
+            loadUserStarBalance();
+        } else {
+            Log.d(TAG, "View not ready yet, rewards will be loaded when view is available");
+        }
+
+        Log.d(TAG, "=== setSelectedChild completed ===");
     }
 
     private ChildProfile getSelectedChild() {
@@ -157,24 +182,43 @@ public class RewardsFragment extends Fragment {
     }
 
     private void loadRewards() {
-        ChildProfile selectedChild = getSelectedChild();
+        Log.d(TAG, "loadRewards() called");
 
-        Log.d(TAG, "loadRewards() called - selectedChild: " +
-                (selectedChild != null ? selectedChild.getName() : "null"));
+        // First try to get selected child
+        ChildProfile selectedChild = getSelectedChild();
+        Log.d(TAG, "Selected child from getSelectedChild(): " +
+                (selectedChild != null ? selectedChild.getName() + " (ID: " + selectedChild.getChildId() + ")" : "null"));
+
+        // If still null, try to get from parent fragment directly
+        if (selectedChild == null && parentFragment != null) {
+            selectedChild = parentFragment.getSelectedKid();
+            Log.d(TAG, "Selected child from parent fragment: " +
+                    (selectedChild != null ? selectedChild.getName() + " (ID: " + selectedChild.getChildId() + ")" : "null"));
+
+            // Cache it locally if found
+            if (selectedChild != null) {
+                this.selectedChild = selectedChild;
+                this.childId = selectedChild.getChildId();
+            }
+        }
 
         if (selectedChild == null) {
-            // No child selected, show empty state with message
+            Log.w(TAG, "No child selected, showing empty state");
             updateEmptyState(true, "Please select a child to view rewards");
+            hideLoadingState(); // Added
             return;
         }
 
+        // Ensure we have familyId
         if (familyId == null || familyId.isEmpty()) {
             familyId = selectedChild.getFamilyId();
+            Log.d(TAG, "Updated familyId from selected child: " + familyId);
         }
 
-        Log.d(TAG, "Using familyId: " + familyId);
+        Log.d(TAG, "Using familyId: " + familyId + " for child: " + selectedChild.getName());
 
         if (familyId == null || familyId.isEmpty()) {
+            Log.w(TAG, "FamilyId is null, trying to get from current user");
             // Try to get familyId from current user
             FirebaseHelper.getCurrentUser(new FirebaseHelper.CurrentUserCallback() {
                 @Override
@@ -186,6 +230,7 @@ public class RewardsFragment extends Fragment {
                     } else {
                         Log.e(TAG, "No family found for current user");
                         updateEmptyState(true, "No family found");
+                        hideLoadingState(); // Added
                     }
                 }
 
@@ -193,6 +238,7 @@ public class RewardsFragment extends Fragment {
                 public void onError(String error) {
                     Log.e(TAG, "Error loading current user: " + error);
                     updateEmptyState(true, "Error loading family data");
+                    hideLoadingState(); // Added
                 }
             });
             return;
@@ -206,39 +252,52 @@ public class RewardsFragment extends Fragment {
         if (selectedChild == null) {
             Log.e(TAG, "loadRewardsForSelectedChild: selectedChild is null");
             updateEmptyState(true, "Please select a child to view rewards");
+            hideLoadingState(); // Added
             return;
         }
 
         Log.d(TAG, "Loading rewards for familyId: " + familyId +
-                ", child: " + selectedChild.getName());
+                ", child: " + selectedChild.getName() + ", childId: " + selectedChild.getChildId());
 
-        // Load all rewards for the family
-        FirebaseHelper.getFamilyRewards(familyId, new FirebaseHelper.RewardsCallback() {
+        // Load only child-specific rewards (no fallback to all family rewards)
+        FirebaseHelper.getRewardsForChild(selectedChild.getChildId(), familyId, new FirebaseHelper.RewardsCallback() {
             @Override
-            public void onRewardsLoaded(List<Reward> rewards) {
-                Log.d(TAG, "Rewards loaded successfully, count: " + rewards.size());
+            public void onRewardsLoaded(List<Reward> childRewards) {
+                Log.d(TAG, "Child-specific rewards found for " + selectedChild.getName() + ": " + childRewards.size());
+
                 if (getActivity() != null) {
                     getActivity().runOnUiThread(() -> {
                         rewardList.clear();
-                        rewardList.addAll(rewards);
+                        rewardList.addAll(childRewards);
                         rewardAdapter.notifyDataSetChanged();
-                        updateEmptyState(rewards.isEmpty(), "No rewards available for " + selectedChild.getName());
+
+                        // Show empty state if no rewards found for this child
+                        if (childRewards.isEmpty()) {
+                            updateEmptyState(true, "No rewards assigned to " + selectedChild.getName());
+                        } else {
+                            updateEmptyState(false, null);
+                        }
 
                         // Log each reward for debugging
-                        for (Reward reward : rewards) {
-                            Log.d(TAG, "Reward: " + reward.getName() +
+                        for (Reward reward : childRewards) {
+                            Log.d(TAG, "Reward for " + selectedChild.getName() + ": " + reward.getName() +
                                     ", Stars: " + reward.getStarCost());
                         }
+
+                        hideLoadingState(); // Added
                     });
                 }
             }
 
             @Override
             public void onError(String error) {
-                Log.e(TAG, "Error loading rewards: " + error);
+                Log.e(TAG, "Error loading child-specific rewards for " + selectedChild.getName() + ": " + error);
                 if (getActivity() != null) {
                     getActivity().runOnUiThread(() -> {
-                        updateEmptyState(true, "Error loading rewards: " + error);
+                        rewardList.clear();
+                        rewardAdapter.notifyDataSetChanged();
+                        updateEmptyState(true, "Error loading rewards for " + selectedChild.getName() + ": " + error);
+                        hideLoadingState(); // Added
                     });
                 }
             }
@@ -250,6 +309,9 @@ public class RewardsFragment extends Fragment {
     }
 
     private void updateEmptyState(boolean isEmpty, String message) {
+        // Hide loading state first
+        hideLoadingState();
+
         if (isEmpty) {
             layoutEmptyState.setVisibility(View.VISIBLE);
             layoutAddRewardButton.setVisibility(View.VISIBLE);
@@ -463,19 +525,59 @@ public class RewardsFragment extends Fragment {
 
     // Public method to refresh rewards when child selection changes
     public void onChildSelectionChanged() {
-        Log.d(TAG, "Child selection changed");
+        Log.d(TAG, "=== onChildSelectionChanged called ===");
+        Log.d(TAG, "Fragment isAdded: " + isAdded() + ", hasView: " + (getView() != null));
+        Log.d(TAG, "Selected child: " + (selectedChild != null ? selectedChild.getName() + " (ID: " + selectedChild.getChildId() + ")" : "null"));
+        Log.d(TAG, "Current familyId: " + familyId);
+
+        // Immediately clear previous data to prevent showing old kid's rewards
+        if (rewardList != null && rewardAdapter != null) {
+            rewardList.clear();
+            rewardAdapter.notifyDataSetChanged();
+            Log.d(TAG, "Cleared previous rewards data immediately in onChildSelectionChanged");
+        }
+
         if (getView() != null && isAdded()) {
+            Log.d(TAG, "Conditions met, loading rewards and star balance");
+            showLoadingState(); // Show loading immediately
             loadRewards();
             loadUserStarBalance();
         } else {
-            // If view is not ready, schedule for later
+            // If view is not ready, schedule for later with multiple attempts
+            Log.d(TAG, "View not ready, scheduling for later");
             if (getView() != null) {
                 getView().post(() -> {
                     if (isAdded()) {
+                        Log.d(TAG, "Delayed execution: loading rewards and star balance");
+                        // Clear data again in case of delayed execution
+                        if (rewardList != null && rewardAdapter != null) {
+                            rewardList.clear();
+                            rewardAdapter.notifyDataSetChanged();
+                        }
+                        showLoadingState();
                         loadRewards();
                         loadUserStarBalance();
+                    } else {
+                        Log.w(TAG, "Fragment not added during delayed execution");
                     }
                 });
+            } else {
+                // Try again after a short delay
+                new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
+                    if (isAdded() && getView() != null) {
+                        Log.d(TAG, "Handler delayed execution: loading rewards and star balance");
+                        // Clear data again in case of delayed execution
+                        if (rewardList != null && rewardAdapter != null) {
+                            rewardList.clear();
+                            rewardAdapter.notifyDataSetChanged();
+                        }
+                        showLoadingState();
+                        loadRewards();
+                        loadUserStarBalance();
+                    } else {
+                        Log.w(TAG, "Fragment still not ready after handler delay");
+                    }
+                }, 100);
             }
         }
     }
@@ -526,5 +628,55 @@ public class RewardsFragment extends Fragment {
     public void setParentFragment(MainRewardFragment parent) {
         this.parentFragment = parent;
         Log.d(TAG, "Parent fragment set directly by MainRewardFragment");
+
+        // If we have a view and the fragment is added, refresh immediately
+        if (getView() != null && isAdded()) {
+            Log.d(TAG, "Fragment ready, refreshing rewards after parent set");
+            showLoadingState(); // Added
+            loadRewards();
+            loadUserStarBalance();
+        }
+    }
+
+    // Public method to force refresh rewards - useful for external calls
+    public void forceRefreshRewards() {
+        Log.d(TAG, "forceRefreshRewards called");
+        if (isAdded() && getView() != null) {
+            showLoadingState(); // Added
+            loadRewards();
+            loadUserStarBalance();
+        } else {
+            Log.w(TAG, "Cannot force refresh - fragment not ready");
+        }
+    }
+
+    // Show loading state
+    private void showLoadingState() {
+        if (progressBar != null) {
+            progressBar.setVisibility(View.VISIBLE);
+        }
+        if (recyclerViewRewards != null) {
+            recyclerViewRewards.setVisibility(View.GONE);
+        }
+        if (layoutEmptyState != null) {
+            layoutEmptyState.setVisibility(View.GONE);
+        }
+        if (layoutAddRewardButton != null) {
+            layoutAddRewardButton.setVisibility(View.GONE);
+        }
+        if (fabAddReward != null) {
+            fabAddReward.setVisibility(View.GONE);
+        }
+        Log.d(TAG, "Showing loading state");
+    }
+
+    // Hide loading state
+    private void hideLoadingState() {
+        if (progressBar != null) {
+            progressBar.setVisibility(View.GONE);
+        }
+        // Note: Don't automatically show recyclerView here
+        // Let updateEmptyState handle the proper visibility based on data availability
+        Log.d(TAG, "Hidden loading state");
     }
 }

@@ -296,10 +296,9 @@ public class IconSelectionDialog extends DialogFragment {
     }
 
     private void loadTaskIcons() {
-        // First, ensure default icons are seeded
-        FirebaseHelper.seedDefaultTaskIcons(seedResult -> {
+
             // After seeding (or if already exists), load all icons
-            FirebaseHelper.getTaskIcons(new FirebaseHelper.TaskIconsCallback() {
+    FirebaseHelper.getTaskIcons(new FirebaseHelper.TaskIconsCallback() {
                 @Override
                 public void onIconsLoaded(List<TaskIcon> icons) {
                     availableIcons.clear();
@@ -307,7 +306,7 @@ public class IconSelectionDialog extends DialogFragment {
 
                     // If no icons from Firebase, add default ones locally
                     if (icons.isEmpty()) {
-                        addDefaultIcons();
+                      //  addDefaultIcons();
                     } else {
                         iconAdapter.notifyDataSetChanged();
                         // Set first icon as preview if available
@@ -322,10 +321,11 @@ public class IconSelectionDialog extends DialogFragment {
                 public void onError(String error) {
                     Toast.makeText(getContext(), "Failed to load icons: " + error, Toast.LENGTH_SHORT).show();
                     // Add some default icons locally
-                    addDefaultIcons();
+                  //  addDefaultIcons();
                 }
             });
-        });
+
+
     }
 
     private void addDefaultIcons() {

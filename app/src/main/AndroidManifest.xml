@@ -30,7 +30,8 @@
             android:theme="@style/AppTheme.NoActionBar" />
         <activity
             android:name=".activities.AddKidProfileActivity"
-            android:exported="false" />
+            android:exported="false"
+            android:theme="@style/AppTheme.NoActionBar"/>
         <activity
             android:name=".activities.TestGoogleSignInActivity"
             android:exported="true"></activity>
@@ -48,7 +49,12 @@
             android:theme="@style/AppTheme.NoActionBar" />
         <activity
             android:name=".activities.CreateTaskActivity"
-            android:exported="false" />
+            android:exported="false"
+            android:theme="@style/AppTheme.NoActionBar"/>
+        <activity
+            android:name=".activities.EditTaskActivity"
+            android:exported="false"
+            android:theme="@style/AppTheme.NoActionBar" />
         <activity
             android:name=".activities.KidDashboardActivity"
             android:exported="false"
@@ -59,7 +65,8 @@
             android:theme="@style/AppTheme.NoActionBar" />
         <activity
             android:name=".activities.KidLoginActivity"
-            android:exported="false" />
+            android:exported="false"
+            android:theme="@style/AppTheme.NoActionBar"/>
         <activity
             android:name=".activities.ParentLoginActivity"
             android:exported="false"

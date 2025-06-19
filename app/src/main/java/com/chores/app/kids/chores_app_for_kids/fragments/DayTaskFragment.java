@@ -149,6 +149,12 @@ public class DayTaskFragment extends Fragment {
             public void onTaskClicked(Task task) {
                 showTaskDetailDialog(task);
             }
+
+            @Override
+            public void onTaskLongClicked(Task task) {
+                // Long click is handled directly in the adapter
+                // This method is here to satisfy the interface
+            }
         });
         rvTasks.setLayoutManager(new LinearLayoutManager(requireContext()));
         rvTasks.setAdapter(taskAdapter);
